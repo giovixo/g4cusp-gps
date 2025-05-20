@@ -29,4 +29,4 @@ This will:
 
 * Push it to the gh-pages branch of your repository
 
-Wait a coulple of minutes to see the changes on https://giovixo.github.io/g4cusp  
+Wait a coulple of minutes to see the changes on https://giovixo.github.io/g4cusp-gps  
