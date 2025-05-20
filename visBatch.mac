@@ -1,0 +1,8 @@
+# Create a scene handler for a specific graphics system
+# (Edit the next line(s) to choose another graphics system)
+#/vis/open OGLIX 800x800-0+0
+#/vis/drawVolume
+#/vis/viewer/set/viewpointVector 1 1 1
+#/vis/viewer/zoom 1.2
+#/vis/viewer/set/auxiliaryEdge 1   
+#/vis/ogl/printEPS
