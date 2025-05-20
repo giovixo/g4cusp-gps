@@ -2,7 +2,7 @@
 # Setup the project
 #
 cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
-project(hermes_gdml)
+project(cusp)
 
 #----------------------------------------------------------------------------
 # Find Geant4 package, activating all available UI and Vis drivers by default
@@ -33,20 +33,24 @@ link_directories(/usr/local/lib)
 include_directories(/usr/local/lib)
 
 # Copy the macro, xml, and gdml files
-file(GLOB MACRO_FILES "*.mac")
+file(GLOB MACRO_FILES ${PROJECT_SOURCE_DIR}/macros/*.mac)
 file(COPY ${MACRO_FILES} DESTINATION ${PROJECT_BINARY_DIR})
 
-file(GLOB XML_FILES "*.xml")
+file(GLOB XML_FILES ${PROJECT_SOURCE_DIR}/gdml-mass-model/*.xml)
 file(COPY ${XML_FILES} DESTINATION ${PROJECT_BINARY_DIR})
 
-file(GLOB GDML_FILES "*.gdml")
+file(GLOB GDML_FILES ${PROJECT_SOURCE_DIR}/gdml-mass-model/*.gdml)
 file(COPY ${GDML_FILES} DESTINATION ${PROJECT_BINARY_DIR})
+
+# Copy the CSV files (this option is for backwards compatibility)
+file(GLOB CSV_FILES "*.csv")
+file(COPY ${CSV_FILES} DESTINATION ${PROJECT_BINARY_DIR})
 
 #----------------------------------------------------------------------------
 # Add the executable, and link it to the Geant4 libraries
 #
-add_executable(cusp_gdml cusp_gdml.cc ${sources} ${headers})
-target_link_libraries(cusp_gdml ${Geant4_LIBRARIES})
+add_executable(cusp cusp.cc ${sources} ${headers})
+target_link_libraries(cusp ${Geant4_LIBRARIES})
 
 #----------------------------------------------------------------------------
 # Enable the DEBUG directive for this target
@@ -61,4 +65,4 @@ target_link_libraries(cusp_gdml ${Geant4_LIBRARIES})
 #----------------------------------------------------------------------------
 # Install the executable to 'bin/Darwin-g++' directory under CMAKE_INSTALL_PREFIX
 #
-install(TARGETS cusp_gdml DESTINATION bin/Darwin-g++)
+install(TARGETS cusp DESTINATION bin/Darwin-g++)
