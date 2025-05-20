@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Code - g4cusp</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Code";
+        var mkdocs_page_input_path = "code.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> g4cusp
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../mass_model/">Mass Model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../source_model/">Source Model</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../data_analysis/">Data analysis</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../tests/">Tests</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Code</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#cmake-file">cmake file</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#c">c++</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#how-to-test-the-user-c-code-outsite-the-geant4-application">How to test the user c++ code outsite the geant4 application</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../howto/">HowTo</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">g4cusp</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Code</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="code">Code</h1>
+<h2 id="cmake-file">cmake file</h2>
+<p>The cmake file <code>CMakeLists.txt</code> has the following option to activate the debug messages:</p>
+<pre><code class="language-cmake">#----------------------------------------------------------------------------
+# Enable the DEBUG directive for this target
+#
+target_compile_definitions(cusp_gdml PRIVATE DEBUG)
+</code></pre>
+<p>Comment to to switch off the debug.</p>
+<p>The debug option can be implemented as in the following code example:</p>
+<pre><code class="language-cpp">    #ifdef DEBUG
+    std::ostringstream strValue;
+    strValue &lt;&lt; &quot;Event ID: &quot; &lt;&lt; event.event_id &lt;&lt; &quot;, &quot;
+        &lt;&lt; &quot;Time: &quot; &lt;&lt; event.time &lt;&lt; &quot;, &quot;
+        &lt;&lt; &quot;Angle: &quot; &lt;&lt; event.angle &lt;&lt; &quot;, &quot;
+        &lt;&lt; &quot;Pol_x: &quot; &lt;&lt; event.pol_x &lt;&lt; &quot;, &quot;
+        &lt;&lt; &quot;Pol_y: &quot; &lt;&lt; event.pol_y &lt;&lt; &quot;, &quot;
+        &lt;&lt; &quot;Pol_z: &quot; &lt;&lt; event.pol_z &lt;&lt; &quot;, &quot;
+        &lt;&lt; &quot;Energy: &quot; &lt;&lt; event.energy;
+    testOutput.print(strValue.str());
+    #endif
+</code></pre>
+<h2 id="c">c++</h2>
+<p>Main program: <code>cusp_gdml.cc</code></p>
+<p>The code works in single or in multi-thread mode. The number of threads can be defined programmatically.</p>
+<pre><code class="language-cpp">// Construct the run manager
+#ifdef G4MULTITHREADED
+    G4MTRunManager * runManager = new G4MTRunManager;
+    runManager-&gt;SetNumberOfThreads(6);
+#else
+    G4RunManager * runManager = new G4RunManager;
+#endif
+</code></pre>
+<p>Header files derived from GEANT4 classes:</p>
+<ul>
+<li>
+<p><code>DetectorConstruction.hh</code></p>
+</li>
+<li>
+<p><code>DetectorHit.hh</code></p>
+</li>
+<li>
+<p><code>PhysicsList.hh</code></p>
+</li>
+<li>
+<p><code>PrimaryGeneratorAction.hh</code></p>
+</li>
+<li>
+<p><code>SensitiveDetector.hh</code></p>
+</li>
+<li>
+<p>... </p>
+</li>
+</ul>
+<p>For example <code>DetectorConstruction</code>  inherits from <code>G4VUserDetectorConstruction</code></p>
+<p>Other header files:</p>
+<ul>
+<li>
+<p><code>WriteToFile.hh</code></p>
+</li>
+<li>
+<p><code>RsmSource.hh</code></p>
+</li>
+</ul>
+<h2 id="how-to-test-the-user-c-code-outsite-the-geant4-application">How to test the user c++ code outsite the geant4 application</h2>
+<p>Edit <code>CMakeLists.txt</code> in <code>cpp-lab/&lt;_dir_name&gt;</code> if necessary</p>
+<p>Compile:</p>
+<pre><code class="language-c">cd cpp-lab/&lt;_dir_name&gt;/build
+cmake ..
+make
+</code></pre>
+<p>Run:</p>
+<p><code>./&lt;program_name&gt;</code></p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../tests/" class="btn btn-neutral float-left" title="Tests"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../howto/" class="btn btn-neutral float-right" title="HowTo">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../tests/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../howto/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
