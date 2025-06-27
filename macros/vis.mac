@@ -91,13 +91,15 @@
 #
 # Define the beam (photons)
 # Particle
-# /gps/particle gamma
-# /gps/energy 200 keV
-# /gps/direction 0.0  0.0 1.0
-# /gps/polarization 1. 0. 0.
+/gps/particle gamma
+/gps/energy 30 keV
+/gps/direction 0.0  -1.0 0.0
+/gps/polarization 1. 0. 0.
 # Beam
-# /gps/pos/type Plane
-# /gps/pos/shape Square
-# /gps/pos/centre 0.0 0.0 -300.0 cm
-# /gps/pos/halfx 50.0 cm
-# /gps/pos/halfy 50.0 cm
+/gps/pos/type Plane
+/gps/pos/shape Square
+/gps/pos/rot1 0 0 1
+/gps/pos/rot2 1 0 0
+/gps/pos/centre 0.0 15.0 0.0 cm
+/gps/pos/halfx 5.0 cm
+/gps/pos/halfy 5.0 cm
