@@ -24,7 +24,7 @@ class UserRunAction : public G4UserRunAction
 public:
     UserRunAction() {
     //fOutFileName = "scorefile.root";  
-    G4AnalysisManager* analysisManager = G4AnalysisManager::Instance();
+    // G4AnalysisManager* analysisManager = G4AnalysisManager::Instance();
     fTimer = new G4Timer;
     }     // Constructor
     ~UserRunAction() {delete fTimer;}  // Destructor

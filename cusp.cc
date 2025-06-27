@@ -1,3 +1,6 @@
+#include <iostream>
+#include <map>
+
 #include "G4MTRunManager.hh"
 #include "G4RunManager.hh"
 
@@ -24,6 +27,19 @@
 
 int main(int argc, char **argv)
 {
+    // Detect the C++ standard version (C++11 is the GEANT4 recomandation)
+    std::cout << "C++ Standard Version: ";
+    #if __cplusplus == 201703L
+       std::cout << "C++17" << std::endl;
+    #elif __cplusplus == 202002L
+       std::cout << "C++20" << std::endl;
+    #elif __cplusplus == 201402L
+       std::cout << "C++14" << std::endl;
+    #elif __cplusplus == 201103L
+       std::cout << "C++11" << std::endl;
+    #else
+       std::cout << "Pre-C++11 or unknown standard" << std::endl;
+    #endif
 
 //    G4Random::setTheEngine(new CLHEP::RanecuEngine);
 //    G4Random::setTheSeed(time(0));
