@@ -1,4 +1,4 @@
-# g4cusp-rs
+# g4cusp-gps
 
 A GEANT4 simulation for CUSP
 
