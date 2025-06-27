@@ -27,7 +27,7 @@
 
 int main(int argc, char **argv)
 {
-    // Detect the C++ standard version (C++11 is the GEANT4 recomandation)
+    // Detect the C++ standard version (C++17 is the GEANT4 recomandation)
     std::cout << "C++ Standard Version: ";
     #if __cplusplus == 201703L
        std::cout << "C++17" << std::endl;
