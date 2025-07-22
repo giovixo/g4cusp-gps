@@ -39,7 +39,7 @@ void UserRun::RecordEvent(const G4Event* event)
 	// found. If not, nothing happens.
 	if(SCI_hitsCollectionIndex < 0 && SDD_hitsCollectionIndex < 0) return;
 
-    G4double eventID = event -> GetEventID();
+    G4int eventID = event -> GetEventID();
     
     // Now, get the HCofThisEvent: it contains all the hits collections
 	// that have been defined.
@@ -120,7 +120,7 @@ void UserRun::RecordEvent(const G4Event* event)
     		   G4cout << "Source timestamp: " << sourceTime << G4endl;  
             #endif
 
-            analysisManager->FillNtupleDColumn(0, eventID);
+            analysisManager->FillNtupleIColumn(0, eventID);
 			analysisManager->FillNtupleDColumn(1, sourceTime);
             analysisManager->FillNtupleDColumn(2, energyDeposit/keV);
             analysisManager->FillNtupleIColumn(3, xpixel);

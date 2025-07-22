@@ -54,7 +54,7 @@ void UserRunAction::BeginOfRunAction(const G4Run* run)
     analysisManager->SetNtupleMerging(true);
     
     analysisManager->CreateNtuple("Events", "Events");
-    analysisManager->CreateNtupleDColumn("EventID");
+    analysisManager->CreateNtupleIColumn("EventID");
     analysisManager->CreateNtupleDColumn("Timestamp");
     analysisManager->CreateNtupleDColumn("En_dep");
     analysisManager->CreateNtupleIColumn("Scint_ID");
