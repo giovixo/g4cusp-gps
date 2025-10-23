@@ -9,7 +9,7 @@ cmake ..
 make
 ```
 
-## How to develop the documentation
+## How to build the documentation
 
 `mkdocs build`
 
