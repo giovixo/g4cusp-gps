@@ -2,24 +2,34 @@
 
 ## How to compile the GEANT4 application
 
+The cmake configuration file is CMakeLists.txt
+
+To build the application:
+
 ```c
-If needed edit the file CMakeLists.txt
 mkdir -p build
+cd build
 cmake ..
 make
 ```
 
 ## How to build the documentation
 
+This documentation is based on [MkDocs](https://www.mkdocs.org/)
+
+Go first into the `doc` directory.
+
+This will build the static site:
+
 `mkdocs build`
-
-This will build the static site
-
-`mkdocs serve`
 
 This will start the server on http://127.0.0.1:8000/
 
+`mkdocs serve`
+
 ## How to deploy the documentation
+
+Use the following command line:
 
 `mkdocs gh-deploy`
 
