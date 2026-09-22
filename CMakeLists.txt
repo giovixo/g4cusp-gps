@@ -2,7 +2,7 @@
 # Setup the project
 #
 cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
-project(cusp)
+project(cusp-activation)
 
 #----------------------------------------------------------------------------
 # Find Geant4 package, activating all available UI and Vis drivers by default
@@ -49,20 +49,20 @@ file(COPY ${CSV_FILES} DESTINATION ${PROJECT_BINARY_DIR})
 #----------------------------------------------------------------------------
 # Add the executable, and link it to the Geant4 libraries
 #
-add_executable(cusp cusp.cc ${sources} ${headers})
-target_link_libraries(cusp ${Geant4_LIBRARIES})
+add_executable(cusp-activation cusp-activation.cc ${sources} ${headers})
+target_link_libraries(cusp-activation ${Geant4_LIBRARIES})
 
 #----------------------------------------------------------------------------
 # Enable the DEBUG directive for this target
 #
-# target_compile_definitions(cusp_gdml PRIVATE DEBUG)
+# target_compile_definitions(cusp-activation_gdml PRIVATE DEBUG)
 
 #----------------------------------------------------------------------------
 # Enable the CSV directive for this target
 #
-# target_compile_definitions(cusp_gdml PRIVATE CSV)
+# target_compile_definitions(cusp-activation_gdml PRIVATE CSV)
 
 #----------------------------------------------------------------------------
 # Install the executable to 'bin/Darwin-g++' directory under CMAKE_INSTALL_PREFIX
 #
-install(TARGETS cusp DESTINATION bin/Darwin-g++)
+install(TARGETS cusp-activation DESTINATION bin/Darwin-g++)

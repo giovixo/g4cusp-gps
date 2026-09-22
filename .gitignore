@@ -38,3 +38,8 @@ doc/site/
 .DS_Store
 .ipynb_checkpoints/
 __pycache__/
+*.cmake
+CMakeFiles/*
+CMakeScripts/*
+CMakeCache.txt
+*.xcodeproj
