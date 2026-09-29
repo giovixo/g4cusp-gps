@@ -1,0 +1,10 @@
+/gps/pos/type Surface
+/gps/pos/shape Sphere
+/gps/pos/centre 5. 5. 30. cm
+/gps/pos/radius 50 m
+/gps/ang/type cos   
+/gps/ang/mintheta    0.000E+00 deg
+/gps/ang/maxtheta    0.5729 deg
+/gps/particle proton
+/gps/energy 1000 MeV
+/run/beamOn 100000

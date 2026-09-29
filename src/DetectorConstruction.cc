@@ -5,70 +5,30 @@
 
 #include "G4NistManager.hh"
 #include "G4RunManager.hh"
-#include "G4RegionStore.hh"
-#include "G4SDManager.hh"
 #include "G4Material.hh"
-#include "G4Box.hh"
-#include "G4VSolid.hh"
-#include "G4SubtractionSolid.hh"
-#include "G4Tubs.hh"
-#include "G4Polyhedra.hh"
-#include "G4Trap.hh"
-#include "G4RotationMatrix.hh"
-#include "G4LogicalVolume.hh"
-#include "G4ThreeVector.hh"
-#include "G4PVPlacement.hh"
-#include "G4PVReplica.hh"
-#include "G4Transform3D.hh"
-#include "G4VPVParameterisation.hh"
-#include "G4PVParameterised.hh"
 #include "globals.hh"
 
 #include "G4GeometryManager.hh"
 #include "G4PhysicalVolumeStore.hh"
 #include "G4LogicalVolumeStore.hh"
 #include "G4SolidStore.hh"
-#include "G4SDManager.hh"
-
-#include "G4VisAttributes.hh"
-#include "G4Colour.hh"
 
 #include "G4GDMLParser.hh"
-
-#include <fstream>
-#include <vector>
-#include <string>
 
 
 // Constructor 
 DetectorConstruction::DetectorConstruction() 
 :   experimentalHall_phys(0)
 {
-    // User messanger
-    // fMessenger = new G4GenericMessenger(this, "/parameters/", "Output file name");
-    // fMessenger->DeclareProperty("filename", file_name, "Name of the output file");
-
 	// Define the materials
 	DefineMaterials();
-
-	// Define the parameters
-	DefineParameters();
-		
-
-	
-;}
+}
 
 
 
 // Destructor
 DetectorConstruction::~DetectorConstruction() { }
 
-
-
-// Definition of the parameters
-void DetectorConstruction::DefineParameters()
-{
-}
 
 
 // Definition of the materials
@@ -115,7 +75,7 @@ void DetectorConstruction::DefineMaterials()
     G4Material* G4_Al = man->FindOrBuildMaterial("G4_Al");
     G4Material* G4_SILICON_DIOXIDE = man->FindOrBuildMaterial("G4_SILICON_DIOXIDE");
     G4Material* G4_KAPTON = man->FindOrBuildMaterial("G4_KAPTON");
-    G4Material* G4_POLYPROPYLENE = man->FindOrBuildMaterial("G4_POLYPROPYLENE");
+    man->FindOrBuildMaterial("G4_POLYPROPYLENE");   // kept for the MLI
 
     // Effective Aluminium Solid for Bus (6619.5 g before system margin, minus 1579.2 g payload = 5040 g)
     // Volume bus: 10 x 10 x 20 = 2000 cm3; effective density = 2.52 g/cm3
@@ -186,15 +146,6 @@ void DetectorConstruction::DefineMaterials()
     Silicone -> AddElement(H,  natoms=6);
     Silicone -> AddElement(O,  natoms=1);
     Silicone -> AddElement(Si, natoms=1);
-
-
-    mli1Material = G4_KAPTON;
-    mli2Material = G4_Al;
-    mli3Material = G4_POLYPROPYLENE;
-
-    solarPanel1Material = G4_Al;
-    solarPanel2Material = G4_SILICON_DIOXIDE;
-    busMaterial = EffectiveAluminiumSolid_Bus;
 }
 
 
@@ -214,13 +165,9 @@ G4VPhysicalVolume* DetectorConstruction::Construct()
     parser.Read("CUSP_GEANT4_Model_20240502.gdml");
 
     
-    // Reads and stores in memory
-    experimentalHall_phys = parser.GetWorldVolume(); // get world
-    //experimentalHall_log = parser.GetVolume("worldVOL");
-    experimentalHall_phys = parser.GetWorldVolume("CUSP_GEANT4_Model_20240502"); // get world 
-    
+    // Get the world from the GDML setup ("Default")
+    experimentalHall_phys = parser.GetWorldVolume();
 
-    
 	// The function must return the physical volume of the world
 	return experimentalHall_phys;
 }

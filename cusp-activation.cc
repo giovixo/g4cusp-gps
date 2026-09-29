@@ -1,8 +1,10 @@
+#include <cstdlib>
 #include <iostream>
-#include <map>
+#include <string>
 
 #include "G4MTRunManager.hh"
 #include "G4RunManager.hh"
+#include "G4Threading.hh"
 
 #include "G4VisExecutive.hh"
 #include "G4UImanager.hh"
@@ -17,8 +19,19 @@
 #include "G4PhysListFactory.hh"
 #include "G4VUserPhysicsList.hh"
 #include "PrimaryGeneratorAction.hh"
+#include "SteppingAction.hh"
 
 #include "G4GenericMessenger.hh"
+
+
+// Usage: cusp-activation [-t nthreads] [macro]
+//   no macro     -> interactive (GUI) session
+//   -t nthreads  -> number of worker threads (default 1; 0 = all available cores)
+static void PrintUsage(const char* prog)
+{
+    std::cerr << "Usage: " << prog << " [-t nthreads] [macro]" << std::endl
+              << "  -t, --threads N   number of worker threads (default 1, 0 = all cores)" << std::endl;
+}
 
 
 int main(int argc, char **argv)
@@ -40,18 +53,49 @@ int main(int argc, char **argv)
 //    G4Random::setTheEngine(new CLHEP::RanecuEngine);
 //    G4Random::setTheSeed(time(0));
     
-    // Detect interactive mode (if no arguments) and define UI session
+    // Parse the command line
+    G4String macroFile;
+    G4int nThreads = 1;
+    for (G4int i = 1; i < argc; ++i)
+    {
+        std::string arg = argv[i];
+        if (arg == "-t" || arg == "--threads")
+        {
+            char* end = nullptr;
+            if (i + 1 < argc) nThreads = std::strtol(argv[++i], &end, 10);
+            if (end == nullptr || *end != '\0' || nThreads < 0)
+            {
+                PrintUsage(argv[0]);
+                return 1;
+            }
+        }
+        else if (macroFile.empty() && arg[0] != '-')
+        {
+            macroFile = arg;
+        }
+        else
+        {
+            PrintUsage(argv[0]);
+            return 1;
+        }
+    }
+
+    // Detect interactive mode (if no macro) and define UI session
     G4UIExecutive* ui = 0;
-    if (argc == 1)
+    if (macroFile.empty())
     {
         ui = new G4UIExecutive(argc, argv);
     }
 
     // Construct the run manager
+    // NB: the G4FORCENUMBEROFTHREADS environment variable, if set, overrides -t
 #ifdef G4MULTITHREADED
     G4MTRunManager * runManager = new G4MTRunManager;
-    runManager->SetNumberOfThreads(1);
+    if (nThreads == 0) nThreads = G4Threading::G4GetNumberOfCores();
+    runManager->SetNumberOfThreads(nThreads);
 #else
+    if (nThreads > 1)
+        G4cout << "WARNING: Geant4 built without multithreading, -t " << nThreads << " ignored" << G4endl;
     G4RunManager * runManager = new G4RunManager;
 #endif
 
@@ -73,14 +117,16 @@ int main(int argc, char **argv)
     
     // Get the pointer to the User Interface manager
     auto uiManager = G4UImanager::GetUIpointer();
+
+    // User commands (/cusp/...)
+    auto steppingMessenger = SteppingAction::CreateMessenger();
     
     if (!ui) // Batch mode
     {
-        // execute an argument macro file if exist
+        // execute the macro file given on the command line
         G4String command = "/control/execute ";
-        G4String fileName = argv[1];
-        uiManager->ApplyCommand(command+fileName);
-        G4cout << "Batch file executed: " << fileName << G4endl;
+        uiManager->ApplyCommand(command+macroFile);
+        G4cout << "Batch file executed: " << macroFile << G4endl;
     }
     else // GUI or interactive mode
     {
@@ -97,6 +143,7 @@ int main(int argc, char **argv)
 
     
     // Job termination
+    delete steppingMessenger;
     delete visManager;
     delete runManager;
     return 0;

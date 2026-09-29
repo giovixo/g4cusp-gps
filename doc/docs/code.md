@@ -1,80 +1,56 @@
 # Code
 
-## cmake file 
-The cmake file `CMakeLists.txt` has the following option to activate the debug messages:
-```cmake
-#----------------------------------------------------------------------------
-# Enable the DEBUG directive for this target
-#
-target_compile_definitions(cusp_gdml PRIVATE DEBUG)
-```
-Comment to to switch off the debug.
+## cmake file
 
-The debug option can be implemented as in the following code example:
-```cpp
-    #ifdef DEBUG
-    std::ostringstream strValue;
-    strValue << "Event ID: " << event.event_id << ", "
-        << "Time: " << event.time << ", "
-        << "Angle: " << event.angle << ", "
-        << "Pol_x: " << event.pol_x << ", "
-        << "Pol_y: " << event.pol_y << ", "
-        << "Pol_z: " << event.pol_z << ", "
-        << "Energy: " << event.energy;
-    testOutput.print(strValue.str());
-    #endif
-```
+The cmake file `CMakeLists.txt` builds the `cusp-activation` executable.
+At every build, the macros (`macros/*.mac`) and the GDML mass model (`gdml-mass-model/*`) are copied
+to the build directory, because the program reads them from the working directory.
 
 ## c++
 
-Main program: `cusp_gdml.cc`
+Main program: `cusp-activation.cc`
 
-The code works in single or in multi-thread mode. The number of threads can be defined programmatically.
+The code works in single or in multi-thread mode. The number of worker threads is set on the command line
+(default 1; `0` means all available cores):
 
-```cpp
-// Construct the run manager
-#ifdef G4MULTITHREADED
-    G4MTRunManager * runManager = new G4MTRunManager;
-    runManager->SetNumberOfThreads(6);
-#else
-    G4RunManager * runManager = new G4RunManager;
-#endif
+```sh
+./cusp-activation -t 4 macros/batch.mac
 ```
+
+If set, the `G4FORCENUMBEROFTHREADS` environment variable overrides `-t`.
 
 Header files derived from GEANT4 classes:
 
-* `DetectorConstruction.hh`
+* `DetectorConstruction.hh`: reads the GDML mass model and defines the custom materials (e.g. GAGG, FR4)
 
-* `DetectorHit.hh`
+* `PhysicsList.hh`: Livermore EM, QBBC hadronic physics, decay and radioactive decay
 
-* `PhysicsList.hh`
+* `PrimaryGeneratorAction.hh`: General Particle Source (configured with `/gps/` commands)
 
-* `PrimaryGeneratorAction.hh`
+* `UserRunAction.hh`, `UserRun.hh`, `UserEventAction.hh`
 
-* `SensitiveDetector.hh`
+* `SteppingAction.hh`: records the radioactive nuclides produced in the geometry
 
-* ... 
+For example `DetectorConstruction` inherits from `G4VUserDetectorConstruction`
 
-For example `DetectorConstruction`  inherits from `G4VUserDetectorConstruction`
+## Output
 
-Other header files:
+Each nuclide with a lifetime between 0.1 s and 1e18 s is recorded when it is produced, and then killed
+(it is not decayed). The ntuple `Events` is written as CSV, one file per run and per worker thread:
+`scorefile_run<N>_nt_Events_t<thread>.csv`. A thread that records no nuclide writes no file.
 
-* `WriteToFile.hh`
+| Column     | Type   | Description                                  |
+|------------|--------|----------------------------------------------|
+| `EventID`  | int    | Event number                                 |
+| `Isotope`  | string | Nuclide name (e.g. `Al26`)                   |
+| `Lifetime` | double | Mean lifetime in seconds                     |
+| `Volume`   | string | Physical volume where the nuclide was produced |
 
-* `RsmSource.hh`
+To merge the thread files of each run into `scorefile_run<N>.csv` (sorted by `EventID`):
 
-## How to test the user c++ code outsite the geant4 application
-
-Edit `CMakeLists.txt` in `cpp-lab/<_dir_name>` if necessary
-
-Compile:
-
-```c
-cd cpp-lab/<_dir_name>/build
-cmake ..
-make
+```sh
+python3 tools/merge_scorefiles.py <output-dir> [--run N] [-o OUTDIR] [--delete]
 ```
 
-Run:
-
-`./<program_name>`
+The command `/cusp/stepping/verbose 0` switches off the `*** RADIOISOTOPE` line printed for each
+recorded nuclide (default 1).

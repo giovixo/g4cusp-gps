@@ -1,7 +1,7 @@
 #----------------------------------------------------------------------------
 # Setup the project
 #
-cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
 project(cusp-activation)
 
 #----------------------------------------------------------------------------
@@ -26,25 +26,10 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 #----------------------------------------------------------------------------
 # Locate sources and headers for this project
 # NB: headers are included so they will show up in IDEs
+# CONFIGURE_DEPENDS re-runs the glob at build time, so added/removed files are picked up
 #
-file(GLOB sources ${PROJECT_SOURCE_DIR}/src/*.cc)
-file(GLOB headers ${PROJECT_SOURCE_DIR}/include/*.hh)
-link_directories(/usr/local/lib)
-include_directories(/usr/local/lib)
-
-# Copy the macro, xml, and gdml files
-file(GLOB MACRO_FILES ${PROJECT_SOURCE_DIR}/macros/*.mac)
-file(COPY ${MACRO_FILES} DESTINATION ${PROJECT_BINARY_DIR})
-
-file(GLOB XML_FILES ${PROJECT_SOURCE_DIR}/gdml-mass-model/*.xml)
-file(COPY ${XML_FILES} DESTINATION ${PROJECT_BINARY_DIR})
-
-file(GLOB GDML_FILES ${PROJECT_SOURCE_DIR}/gdml-mass-model/*.gdml)
-file(COPY ${GDML_FILES} DESTINATION ${PROJECT_BINARY_DIR})
-
-# Copy the CSV files (this option is for backwards compatibility)
-file(GLOB CSV_FILES "*.csv")
-file(COPY ${CSV_FILES} DESTINATION ${PROJECT_BINARY_DIR})
+file(GLOB sources CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/*.cc)
+file(GLOB headers CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/include/*.hh)
 
 #----------------------------------------------------------------------------
 # Add the executable, and link it to the Geant4 libraries
@@ -53,14 +38,18 @@ add_executable(cusp-activation cusp-activation.cc ${sources} ${headers})
 target_link_libraries(cusp-activation ${Geant4_LIBRARIES})
 
 #----------------------------------------------------------------------------
-# Enable the DEBUG directive for this target
+# Copy the macro and GDML files to the build directory at every build
+# (the program reads them from the working directory)
 #
-# target_compile_definitions(cusp-activation_gdml PRIVATE DEBUG)
-
-#----------------------------------------------------------------------------
-# Enable the CSV directive for this target
-#
-# target_compile_definitions(cusp-activation_gdml PRIVATE CSV)
+file(GLOB RUNTIME_FILES CONFIGURE_DEPENDS
+     ${PROJECT_SOURCE_DIR}/macros/*.mac
+     ${PROJECT_SOURCE_DIR}/gdml-mass-model/*.xml
+     ${PROJECT_SOURCE_DIR}/gdml-mass-model/*.gdml)
+add_custom_target(copy_runtime_files ALL
+                  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${RUNTIME_FILES} ${PROJECT_BINARY_DIR}
+                  DEPENDS ${RUNTIME_FILES}
+                  COMMENT "Copying macro and GDML files to ${PROJECT_BINARY_DIR}")
+add_dependencies(cusp-activation copy_runtime_files)
 
 #----------------------------------------------------------------------------
 # Install the executable to 'bin/Darwin-g++' directory under CMAKE_INSTALL_PREFIX
