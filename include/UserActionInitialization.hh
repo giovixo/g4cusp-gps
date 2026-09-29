@@ -3,8 +3,6 @@
 
 #include "G4VUserActionInitialization.hh"
 
-class DetectorConstruction;
-
 class UserActionInitialization : public G4VUserActionInitialization
 {
 public:

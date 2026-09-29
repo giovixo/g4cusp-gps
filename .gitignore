@@ -43,3 +43,14 @@ CMakeFiles/*
 CMakeScripts/*
 CMakeCache.txt
 *.xcodeproj
+
+# Xcode build output
+Debug/
+
+# Run-time copies of macros and GDML (sources live in macros/ and gdml-mass-model/)
+/*.mac
+/*.gdml
+/*.xml
+
+# Simulation output
+scorefile*.csv

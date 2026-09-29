@@ -1,17 +1,14 @@
 #ifndef USEREVENTACTION_HH
 #define USEREVENTACTION_HH
 
-#include "G4Timer.hh"
 #include "G4UserEventAction.hh"
 #include "globals.hh"
-#include "G4ThreeVector.hh"
 
 
 // Defining actions performed at the beginning and/or the end of each event
 
 // G4UserEventAction is the base class for defining user actions performed at
 // the beginning and/or end of each event.
-class UserRunAction;
 
 class UserEventAction : public G4UserEventAction
 {

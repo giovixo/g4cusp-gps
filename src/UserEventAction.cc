@@ -1,16 +1,5 @@
-#include "UserRunAction.hh"
 #include "UserEventAction.hh"
 #include "G4Event.hh"
-#include "G4Trajectory.hh"
-#include "G4VVisManager.hh"
-#include "G4SDManager.hh"
-#include "G4UnitsTable.hh"
-#include "G4SystemOfUnits.hh"
-#include "G4PhysicalConstants.hh"
-
-#include <iostream>
-#include <fstream>
-#include <vector>
 
 // Defining actions performed at the beginning and/or the end of each event
 

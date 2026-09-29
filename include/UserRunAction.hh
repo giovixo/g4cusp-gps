@@ -14,7 +14,7 @@
 class UserRunAction : public G4UserRunAction
 {
 public:
-    UserRunAction() {fTimer = new G4Timer;}        // Constructor
+    UserRunAction();                               // Constructor
     ~UserRunAction() {delete fTimer;}  // Destructor
     
     // G4UserRunAction has two methods, BeginOfRunAction and EndOfRunAction,

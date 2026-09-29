@@ -17,8 +17,6 @@
 #include "G4PhysListFactory.hh"
 #include "G4VUserPhysicsList.hh"
 #include "PrimaryGeneratorAction.hh"
-#include "UserRunAction.hh"
-#include "UserEventAction.hh"
 
 #include "G4GenericMessenger.hh"
 
@@ -65,7 +63,7 @@ int main(int argc, char **argv)
     // // User action initialization
     runManager->SetUserInitialization(new UserActionInitialization());
     
-    // Initialize G4 kernel
+    // Initialize G4 kernel (needed before any /gps command in the macros)
     runManager->Initialize();
 
     
@@ -75,8 +73,6 @@ int main(int argc, char **argv)
     
     // Get the pointer to the User Interface manager
     auto uiManager = G4UImanager::GetUIpointer();
-    
-    uiManager->ApplyCommand("/run/initialize");
     
     if (!ui) // Batch mode
     {

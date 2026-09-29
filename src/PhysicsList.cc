@@ -5,16 +5,16 @@
 
 #include "G4EmLivermorePhysics.hh"
 #include "G4EmLivermorePolarizedPhysics.hh"
-#include "G4EmStandardPhysics.hh"
 
 #include "G4DecayPhysics.hh"
 #include "G4RadioactiveDecayPhysics.hh"
 
-#include "G4HadronElasticPhysics.hh"
+#include "G4HadronElasticPhysicsXS.hh"
 #include "G4HadronPhysicsFTFP_BERT.hh"
 #include "G4HadronPhysicsQGSP_BERT.hh"
+#include "G4HadronInelasticQBBC.hh"
 #include "G4StoppingPhysics.hh"
-#include "G4IonPhysics.hh"
+#include "G4IonPhysicsXS.hh"
 #include "G4NeutronTrackingCut.hh"
 
 // Constructor
@@ -30,17 +30,19 @@ fDecPhysicsList(0)
     // Decay physics and all particles
     fDecPhysicsList = new G4DecayPhysics(0);
     fRadioDecPhysicsList = new G4RadioactiveDecayPhysics(0);
-
-    // EM physics (polarization ON)
-    // fEmPhysicsList = new G4EmLivermorePhysics(0);
-    fEmPhysicsList = new G4EmLivermorePolarizedPhysics(0);
+    
+    // EM physics
+    fEmPhysicsList = new G4EmLivermorePhysics(0);
+//    fEmPhysicsList = new G4EmLivermorePolarizedPhysics(0);
 
     // Hadronic physics (vector of processes)
-    fHadronPhys.push_back( new G4HadronElasticPhysics(0));
-    fHadronPhys.push_back( new G4HadronPhysicsFTFP_BERT(0));
+    fHadronPhys.push_back( new G4HadronElasticPhysicsXS(0));
+//    fHadronPhys.push_back( new G4HadronPhysicsFTFP_BERT(0));
 //    fHadronPhys.push_back( new G4HadronPhysicsQGSP_BERT(0));
+    fHadronPhys.push_back( new G4HadronInelasticQBBC(0));
+
     fHadronPhys.push_back( new G4StoppingPhysics(0));
-    fHadronPhys.push_back( new G4IonPhysics(0));
+    fHadronPhys.push_back( new G4IonPhysicsXS(0));
     fHadronPhys.push_back( new G4NeutronTrackingCut(0));
 }
 
@@ -51,6 +53,8 @@ PhysicsList::~PhysicsList()
     delete fEmPhysicsList;
     for(size_t i=0; i<fHadronPhys.size(); i++) {delete fHadronPhys[i];}
     delete fDecPhysicsList;
+    delete fRadioDecPhysicsList;
+
 }
 
 
@@ -76,6 +80,7 @@ void PhysicsList::ConstructProcess()
     // Decay physics list
     fDecPhysicsList->ConstructProcess();
     fRadioDecPhysicsList->ConstructProcess();
+
 }
 
 

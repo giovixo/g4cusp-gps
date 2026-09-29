@@ -1,13 +1,11 @@
 #include "SteppingAction.hh"
-#include "DetectorConstruction.hh"
-#include "UserRun.hh"
-#include "UserEventAction.hh"
 
 #include "G4RunManager.hh"
+#include "G4Event.hh"
+#include "G4Step.hh"
+#include "G4VProcess.hh"
 #include "G4SystemOfUnits.hh"
-#include "G4UnitsTable.hh"
 #include "G4AnalysisManager.hh"
-#include "G4DecayTable.hh"
 
 SteppingAction::SteppingAction()
 { }
@@ -51,7 +49,7 @@ void SteppingAction::UserSteppingAction(const G4Step* step)
             
             
             G4AnalysisManager* analysisManager = G4AnalysisManager::Instance();
-            analysisManager -> FillNtupleDColumn(0, eventID);
+            analysisManager -> FillNtupleIColumn(0, eventID);
             analysisManager -> FillNtupleSColumn(1, particleName);
             analysisManager -> FillNtupleDColumn(2, particle->GetPDGLifeTime()/s);
             analysisManager -> FillNtupleSColumn(3, volumeName);
@@ -64,7 +62,7 @@ void SteppingAction::UserSteppingAction(const G4Step* step)
     //        particle->DumpTable();
 //            G4cout << G4endl;
 
-            step->GetTrack()->SetTrackStatus(fStopAndKill);
+            step->GetTrack()->SetTrackStatus(fKillTrackAndSecondaries);
         }
         
     }

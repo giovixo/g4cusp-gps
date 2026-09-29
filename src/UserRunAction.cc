@@ -1,20 +1,26 @@
 #include "UserRunAction.hh"
-#include "G4Run.hh"
 #include "UserRun.hh"
-#include "G4Timer.hh"
-#include "G4UnitsTable.hh"
-#include "G4SystemOfUnits.hh"
-#include "G4PhysicalConstants.hh"
 
-#include "ConfigFile.hh"
-// Change this header if you want different AnalysisManager output (e.g. XML)
-//#include "g4root.hh"
 #include "G4AnalysisManager.hh"
 
-#include <fstream>
-#include <vector>
 #include <string>
 
+
+// Constructor: the ntuple is booked once here (not at every run).
+// Notice: it must be done the same way in master and workers
+UserRunAction::UserRunAction()
+{
+    fTimer = new G4Timer;
+
+    G4AnalysisManager* analysisManager = G4AnalysisManager::Instance();
+    analysisManager->SetDefaultFileType("csv");
+    analysisManager->CreateNtuple("Events", "Events");
+    analysisManager->CreateNtupleIColumn("EventID");
+    analysisManager->CreateNtupleSColumn("Isotope");
+    analysisManager->CreateNtupleDColumn("Lifetime");
+    analysisManager->CreateNtupleSColumn("Volume");
+    analysisManager->FinishNtuple();
+}
 
 //UserRunAction::~UserRunAction()
 //{   delete fTimer;
@@ -31,17 +37,9 @@ G4Run* UserRunAction::GenerateRun()
 
 void UserRunAction::BeginOfRunAction(const G4Run* run)
 {
-    // Create analysis manager
-    // Notice: it must be done the same way in master and workers
+    // Open one output file per run, so that successive /run/beamOn do not overwrite each other
     G4AnalysisManager* analysisManager = G4AnalysisManager::Instance();
-    analysisManager->OpenFile("scorefile.csv");
-    analysisManager->CreateNtuple("Events", "Events");
-    analysisManager->CreateNtupleDColumn("EventID");
-    analysisManager->CreateNtupleSColumn("Isotope");
-    analysisManager->CreateNtupleDColumn("Lifetime");
-    analysisManager->CreateNtupleSColumn("Volume");
-    analysisManager->FinishNtuple();
-    
+    analysisManager->OpenFile("scorefile_run" + std::to_string(run->GetRunID()) + ".csv");
     
     if(IsMaster())
     {

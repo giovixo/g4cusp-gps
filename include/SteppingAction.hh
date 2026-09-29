@@ -4,8 +4,6 @@
 #include "G4UserSteppingAction.hh"
 #include "globals.hh"
 
-class DetectorConstruction;
-class UserEventAction;
 
 
 class SteppingAction : public G4UserSteppingAction

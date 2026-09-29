@@ -2,7 +2,6 @@
 #define PrimaryGeneratorAction_H 1
 
 #include "G4VUserPrimaryGeneratorAction.hh"
-#include "DetectorConstruction.hh"
 
 // Mandatory user class that defines the properties of the
 // particle gun and run initialization
@@ -11,7 +10,6 @@
 
 class G4GeneralParticleSource;
 class G4Event;
-class DetectorConstruction;
 
 class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
 {
