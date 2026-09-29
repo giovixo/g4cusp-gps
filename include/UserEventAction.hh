@@ -16,8 +16,8 @@ class UserRunAction;
 class UserEventAction : public G4UserEventAction
 {
 public:
-    UserEventAction();	// Constructor
-    virtual ~UserEventAction();		    // Destructor
+    UserEventAction();    // Constructor
+    virtual ~UserEventAction();            // Destructor
     
     // G4UserEventAction has two methods, BeginOfEventAction and
     // EndOfEventAction, which can be overloaded by the user to define specific

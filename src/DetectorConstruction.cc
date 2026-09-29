@@ -1,8 +1,5 @@
 #include "DetectorConstruction.hh"
 
-#include "SensitiveDetector.hh"
-//#include "SDDSensitiveDetector.hh"
-
 #include "G4SystemOfUnits.hh"
 #include "G4PhysicalConstants.hh"
 
@@ -42,7 +39,6 @@
 #include <vector>
 #include <string>
 
-//#include "ConfigFile.hh"
 
 // Constructor 
 DetectorConstruction::DetectorConstruction() 
@@ -474,108 +470,108 @@ void DetectorConstruction::ConstructSDandField()
     auto sdman = G4SDManager::GetSDMpointer(); // Mandatory since Geant v. 4.10.03
 
     // Instantiation of the scintillator sensitive detector and readout geometry
-    SensitiveDetector* scint_SD  = new SensitiveDetector("SCI");
-
-
-    sdman->AddNewDetector(scint_SD); // Mandatory since Geant v. 4.10.03
-
-    SetSensitiveDetector(sdd00_log, scint_SD);
-    SetSensitiveDetector(sdd01_log, scint_SD);
-    SetSensitiveDetector(sdd02_log, scint_SD);
-    SetSensitiveDetector(sdd03_log, scint_SD);
-    SetSensitiveDetector(sdd04_log, scint_SD);
-    SetSensitiveDetector(sdd05_log, scint_SD);
-    SetSensitiveDetector(sdd06_log, scint_SD);
-    SetSensitiveDetector(sdd07_log, scint_SD);
-    SetSensitiveDetector(sdd08_log, scint_SD);
-    SetSensitiveDetector(sdd09_log, scint_SD);
-    SetSensitiveDetector(sdd10_log, scint_SD);
-    SetSensitiveDetector(sdd11_log, scint_SD);
-    SetSensitiveDetector(sdd12_log, scint_SD);
-    SetSensitiveDetector(sdd13_log, scint_SD);
-    SetSensitiveDetector(sdd14_log, scint_SD);
-    SetSensitiveDetector(sdd15_log, scint_SD);
-    SetSensitiveDetector(sdd16_log, scint_SD);
-    SetSensitiveDetector(sdd17_log, scint_SD);
-    SetSensitiveDetector(sdd18_log, scint_SD);
-    SetSensitiveDetector(sdd19_log, scint_SD);
-    SetSensitiveDetector(sdd20_log, scint_SD);
-    SetSensitiveDetector(sdd21_log, scint_SD);
-    SetSensitiveDetector(sdd22_log, scint_SD);
-    SetSensitiveDetector(sdd23_log, scint_SD);
-    SetSensitiveDetector(sdd24_log, scint_SD);
-    SetSensitiveDetector(sdd25_log, scint_SD);
-    SetSensitiveDetector(sdd26_log, scint_SD);
-    SetSensitiveDetector(sdd27_log, scint_SD);
-    SetSensitiveDetector(sdd28_log, scint_SD);
-    SetSensitiveDetector(sdd29_log, scint_SD);
-    SetSensitiveDetector(sdd30_log, scint_SD);
-    SetSensitiveDetector(sdd31_log, scint_SD);
-
-    SetSensitiveDetector(scint00_log, scint_SD);
-    SetSensitiveDetector(scint01_log, scint_SD);
-    SetSensitiveDetector(scint02_log, scint_SD);
-    SetSensitiveDetector(scint03_log, scint_SD);
-    SetSensitiveDetector(scint04_log, scint_SD);
-    SetSensitiveDetector(scint05_log, scint_SD);
-    SetSensitiveDetector(scint06_log, scint_SD);
-    SetSensitiveDetector(scint07_log, scint_SD);
-    SetSensitiveDetector(scint08_log, scint_SD);
-    SetSensitiveDetector(scint09_log, scint_SD);
-    SetSensitiveDetector(scint10_log, scint_SD);
-    SetSensitiveDetector(scint11_log, scint_SD);
-    SetSensitiveDetector(scint12_log, scint_SD);
-    SetSensitiveDetector(scint13_log, scint_SD);
-    SetSensitiveDetector(scint14_log, scint_SD);
-    SetSensitiveDetector(scint15_log, scint_SD);
-    SetSensitiveDetector(scint16_log, scint_SD);
-    SetSensitiveDetector(scint17_log, scint_SD);
-    SetSensitiveDetector(scint18_log, scint_SD);
-    SetSensitiveDetector(scint19_log, scint_SD);
-    SetSensitiveDetector(scint20_log, scint_SD);
-    SetSensitiveDetector(scint21_log, scint_SD);
-    SetSensitiveDetector(scint22_log, scint_SD);
-    SetSensitiveDetector(scint23_log, scint_SD);
-    SetSensitiveDetector(scint24_log, scint_SD);
-    SetSensitiveDetector(scint25_log, scint_SD);
-    SetSensitiveDetector(scint26_log, scint_SD);
-    SetSensitiveDetector(scint27_log, scint_SD);
-    SetSensitiveDetector(scint28_log, scint_SD);
-    SetSensitiveDetector(scint29_log, scint_SD);
-    SetSensitiveDetector(scint30_log, scint_SD);
-    SetSensitiveDetector(scint31_log, scint_SD);
-    SetSensitiveDetector(scint32_log, scint_SD);
-    SetSensitiveDetector(scint33_log, scint_SD);
-    SetSensitiveDetector(scint34_log, scint_SD);
-    SetSensitiveDetector(scint35_log, scint_SD);
-    SetSensitiveDetector(scint36_log, scint_SD);
-    SetSensitiveDetector(scint37_log, scint_SD);
-    SetSensitiveDetector(scint38_log, scint_SD);
-    SetSensitiveDetector(scint39_log, scint_SD);
-    SetSensitiveDetector(scint40_log, scint_SD);
-    SetSensitiveDetector(scint41_log, scint_SD);
-    SetSensitiveDetector(scint42_log, scint_SD);
-    SetSensitiveDetector(scint43_log, scint_SD);
-    SetSensitiveDetector(scint44_log, scint_SD);
-    SetSensitiveDetector(scint45_log, scint_SD);
-    SetSensitiveDetector(scint46_log, scint_SD);
-    SetSensitiveDetector(scint47_log, scint_SD);
-    SetSensitiveDetector(scint48_log, scint_SD);
-    SetSensitiveDetector(scint49_log, scint_SD);
-    SetSensitiveDetector(scint50_log, scint_SD);
-    SetSensitiveDetector(scint51_log, scint_SD);
-    SetSensitiveDetector(scint52_log, scint_SD);
-    SetSensitiveDetector(scint53_log, scint_SD);
-    SetSensitiveDetector(scint54_log, scint_SD);
-    SetSensitiveDetector(scint55_log, scint_SD);
-    SetSensitiveDetector(scint56_log, scint_SD);
-    SetSensitiveDetector(scint57_log, scint_SD);
-    SetSensitiveDetector(scint58_log, scint_SD);
-    SetSensitiveDetector(scint59_log, scint_SD);
-    SetSensitiveDetector(scint60_log, scint_SD);
-    SetSensitiveDetector(scint61_log, scint_SD);
-    SetSensitiveDetector(scint62_log, scint_SD);
-    SetSensitiveDetector(scint63_log, scint_SD);    
+//    SensitiveDetector* scint_SD  = new SensitiveDetector("SCI");
+//
+//
+//    sdman->AddNewDetector(scint_SD); // Mandatory since Geant v. 4.10.03
+//
+//    SetSensitiveDetector(sdd00_log, scint_SD);
+//    SetSensitiveDetector(sdd01_log, scint_SD);
+//    SetSensitiveDetector(sdd02_log, scint_SD);
+//    SetSensitiveDetector(sdd03_log, scint_SD);
+//    SetSensitiveDetector(sdd04_log, scint_SD);
+//    SetSensitiveDetector(sdd05_log, scint_SD);
+//    SetSensitiveDetector(sdd06_log, scint_SD);
+//    SetSensitiveDetector(sdd07_log, scint_SD);
+//    SetSensitiveDetector(sdd08_log, scint_SD);
+//    SetSensitiveDetector(sdd09_log, scint_SD);
+//    SetSensitiveDetector(sdd10_log, scint_SD);
+//    SetSensitiveDetector(sdd11_log, scint_SD);
+//    SetSensitiveDetector(sdd12_log, scint_SD);
+//    SetSensitiveDetector(sdd13_log, scint_SD);
+//    SetSensitiveDetector(sdd14_log, scint_SD);
+//    SetSensitiveDetector(sdd15_log, scint_SD);
+//    SetSensitiveDetector(sdd16_log, scint_SD);
+//    SetSensitiveDetector(sdd17_log, scint_SD);
+//    SetSensitiveDetector(sdd18_log, scint_SD);
+//    SetSensitiveDetector(sdd19_log, scint_SD);
+//    SetSensitiveDetector(sdd20_log, scint_SD);
+//    SetSensitiveDetector(sdd21_log, scint_SD);
+//    SetSensitiveDetector(sdd22_log, scint_SD);
+//    SetSensitiveDetector(sdd23_log, scint_SD);
+//    SetSensitiveDetector(sdd24_log, scint_SD);
+//    SetSensitiveDetector(sdd25_log, scint_SD);
+//    SetSensitiveDetector(sdd26_log, scint_SD);
+//    SetSensitiveDetector(sdd27_log, scint_SD);
+//    SetSensitiveDetector(sdd28_log, scint_SD);
+//    SetSensitiveDetector(sdd29_log, scint_SD);
+//    SetSensitiveDetector(sdd30_log, scint_SD);
+//    SetSensitiveDetector(sdd31_log, scint_SD);
+//
+//    SetSensitiveDetector(scint00_log, scint_SD);
+//    SetSensitiveDetector(scint01_log, scint_SD);
+//    SetSensitiveDetector(scint02_log, scint_SD);
+//    SetSensitiveDetector(scint03_log, scint_SD);
+//    SetSensitiveDetector(scint04_log, scint_SD);
+//    SetSensitiveDetector(scint05_log, scint_SD);
+//    SetSensitiveDetector(scint06_log, scint_SD);
+//    SetSensitiveDetector(scint07_log, scint_SD);
+//    SetSensitiveDetector(scint08_log, scint_SD);
+//    SetSensitiveDetector(scint09_log, scint_SD);
+//    SetSensitiveDetector(scint10_log, scint_SD);
+//    SetSensitiveDetector(scint11_log, scint_SD);
+//    SetSensitiveDetector(scint12_log, scint_SD);
+//    SetSensitiveDetector(scint13_log, scint_SD);
+//    SetSensitiveDetector(scint14_log, scint_SD);
+//    SetSensitiveDetector(scint15_log, scint_SD);
+//    SetSensitiveDetector(scint16_log, scint_SD);
+//    SetSensitiveDetector(scint17_log, scint_SD);
+//    SetSensitiveDetector(scint18_log, scint_SD);
+//    SetSensitiveDetector(scint19_log, scint_SD);
+//    SetSensitiveDetector(scint20_log, scint_SD);
+//    SetSensitiveDetector(scint21_log, scint_SD);
+//    SetSensitiveDetector(scint22_log, scint_SD);
+//    SetSensitiveDetector(scint23_log, scint_SD);
+//    SetSensitiveDetector(scint24_log, scint_SD);
+//    SetSensitiveDetector(scint25_log, scint_SD);
+//    SetSensitiveDetector(scint26_log, scint_SD);
+//    SetSensitiveDetector(scint27_log, scint_SD);
+//    SetSensitiveDetector(scint28_log, scint_SD);
+//    SetSensitiveDetector(scint29_log, scint_SD);
+//    SetSensitiveDetector(scint30_log, scint_SD);
+//    SetSensitiveDetector(scint31_log, scint_SD);
+//    SetSensitiveDetector(scint32_log, scint_SD);
+//    SetSensitiveDetector(scint33_log, scint_SD);
+//    SetSensitiveDetector(scint34_log, scint_SD);
+//    SetSensitiveDetector(scint35_log, scint_SD);
+//    SetSensitiveDetector(scint36_log, scint_SD);
+//    SetSensitiveDetector(scint37_log, scint_SD);
+//    SetSensitiveDetector(scint38_log, scint_SD);
+//    SetSensitiveDetector(scint39_log, scint_SD);
+//    SetSensitiveDetector(scint40_log, scint_SD);
+//    SetSensitiveDetector(scint41_log, scint_SD);
+//    SetSensitiveDetector(scint42_log, scint_SD);
+//    SetSensitiveDetector(scint43_log, scint_SD);
+//    SetSensitiveDetector(scint44_log, scint_SD);
+//    SetSensitiveDetector(scint45_log, scint_SD);
+//    SetSensitiveDetector(scint46_log, scint_SD);
+//    SetSensitiveDetector(scint47_log, scint_SD);
+//    SetSensitiveDetector(scint48_log, scint_SD);
+//    SetSensitiveDetector(scint49_log, scint_SD);
+//    SetSensitiveDetector(scint50_log, scint_SD);
+//    SetSensitiveDetector(scint51_log, scint_SD);
+//    SetSensitiveDetector(scint52_log, scint_SD);
+//    SetSensitiveDetector(scint53_log, scint_SD);
+//    SetSensitiveDetector(scint54_log, scint_SD);
+//    SetSensitiveDetector(scint55_log, scint_SD);
+//    SetSensitiveDetector(scint56_log, scint_SD);
+//    SetSensitiveDetector(scint57_log, scint_SD);
+//    SetSensitiveDetector(scint58_log, scint_SD);
+//    SetSensitiveDetector(scint59_log, scint_SD);
+//    SetSensitiveDetector(scint60_log, scint_SD);
+//    SetSensitiveDetector(scint61_log, scint_SD);
+//    SetSensitiveDetector(scint62_log, scint_SD);
+//    SetSensitiveDetector(scint63_log, scint_SD);    
 }
 
 

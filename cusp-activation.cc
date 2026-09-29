@@ -23,8 +23,6 @@
 #include "G4GenericMessenger.hh"
 
 
-#include "GlobalRsmSource.hh"
-
 int main(int argc, char **argv)
 {
     // Detect the C++ standard version (C++17 is the GEANT4 recomandation)
@@ -59,12 +57,6 @@ int main(int argc, char **argv)
     G4RunManager * runManager = new G4RunManager;
 #endif
 
-    // Initialize the global RsmSource
-    gRsmSource = new RsmSource();
-    gRsmSource->ReadCSV("rsm-events.csv");
-    #ifdef DEBUG
-       gRsmSource->PrintCSV(); // Print the CSV data for debugging
-    #endif
     
     // Set mandatory initialization classes
     runManager->SetUserInitialization(new DetectorConstruction());
