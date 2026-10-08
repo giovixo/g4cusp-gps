@@ -17,6 +17,9 @@ Batch mode:
 Batch mode with 4 worker threads:
 `./cusp-activation -t 4 batch.mac`
 
+Batch mode with neutron activation (no neutron tracking cut):
+`./cusp-activation -n batch.mac`
+
 ## License
 ```txt
 This code is released under MIT licence. Please, read the `LICENCE` file in the root dir. 

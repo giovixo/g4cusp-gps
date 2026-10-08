@@ -24,13 +24,15 @@
 #include "G4GenericMessenger.hh"
 
 
-// Usage: cusp-activation [-t nthreads] [macro]
+// Usage: cusp-activation [-t nthreads] [-n] [macro]
 //   no macro     -> interactive (GUI) session
 //   -t nthreads  -> number of worker threads (default 1; 0 = all available cores)
+//   -n           -> neutron activation: no G4NeutronTrackingCut (default: cut active)
 static void PrintUsage(const char* prog)
 {
-    std::cerr << "Usage: " << prog << " [-t nthreads] [macro]" << std::endl
-              << "  -t, --threads N   number of worker threads (default 1, 0 = all cores)" << std::endl;
+    std::cerr << "Usage: " << prog << " [-t nthreads] [-n] [macro]" << std::endl
+              << "  -t, --threads N          number of worker threads (default 1, 0 = all cores)" << std::endl
+              << "  -n, --neutron-activation track slow neutrons until capture (no G4NeutronTrackingCut)" << std::endl;
 }
 
 
@@ -56,6 +58,7 @@ int main(int argc, char **argv)
     // Parse the command line
     G4String macroFile;
     G4int nThreads = 1;
+    G4bool neutronActivation = false;
     for (G4int i = 1; i < argc; ++i)
     {
         std::string arg = argv[i];
@@ -68,6 +71,10 @@ int main(int argc, char **argv)
                 PrintUsage(argv[0]);
                 return 1;
             }
+        }
+        else if (arg == "-n" || arg == "--neutron-activation")
+        {
+            neutronActivation = true;
         }
         else if (macroFile.empty() && arg[0] != '-')
         {
@@ -102,7 +109,7 @@ int main(int argc, char **argv)
     
     // Set mandatory initialization classes
     runManager->SetUserInitialization(new DetectorConstruction());
-    runManager->SetUserInitialization(new PhysicsList());   
+    runManager->SetUserInitialization(new PhysicsList(neutronActivation));   
 
     // // User action initialization
     runManager->SetUserInitialization(new UserActionInitialization());

@@ -10,7 +10,7 @@ class G4VPhysicsConstructor;
 class PhysicsList: public G4VModularPhysicsList
 {
 public:
-    PhysicsList();        // Constructor
+    explicit PhysicsList(G4bool neutronActivation = false);        // Constructor
     ~PhysicsList();        // Destructor
     
 protected:

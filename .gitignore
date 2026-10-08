@@ -57,3 +57,6 @@ scorefile*.csv
 
 # Geant4 interactive session history
 G4History.macro
+
+# Session handoff notes
+HANDOFF.md

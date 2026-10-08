@@ -30,7 +30,14 @@ cd build
 ./cusp-activation                        # interactive GUI
 ./cusp-activation macrotest.mac          # batch mode
 ./cusp-activation -t 4 macrotest.mac     # batch mode, 4 worker threads (0 = all cores)
+./cusp-activation -n macrotest.mac       # batch mode, neutron activation on
 ```
+
+By default `G4NeutronTrackingCut` kills neutrons 10 µs after they are created, before most of them
+thermalise. With `-n` (`--neutron-activation`) the cut is removed, so slow neutrons are tracked until
+they are captured or escape. Everything else in the physics list stays the same, so running with and
+without `-n` measures the contribution of neutron capture to the activation.
+The two runs write files with the same names, so run them in separate directories.
 
 The primary flux is set with the `/gps/` commands in the macro (see `macros/macrotest.mac`).
 The kernel is initialised before the macro runs, so `/run/initialize` in the macro is optional.

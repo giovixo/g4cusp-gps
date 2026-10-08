@@ -18,7 +18,9 @@
 #include "G4NeutronTrackingCut.hh"
 
 // Constructor
-PhysicsList::PhysicsList()
+// neutronActivation = true drops G4NeutronTrackingCut, so slow/thermal neutrons
+// are tracked until they are captured (activation by neutron capture)
+PhysicsList::PhysicsList(G4bool neutronActivation)
 :   fEmPhysicsList(0),
 fHadronPhys(),
 fDecPhysicsList(0)
@@ -43,7 +45,11 @@ fDecPhysicsList(0)
 
     fHadronPhys.push_back( new G4StoppingPhysics(0));
     fHadronPhys.push_back( new G4IonPhysicsXS(0));
-    fHadronPhys.push_back( new G4NeutronTrackingCut(0));
+    if (!neutronActivation) fHadronPhys.push_back( new G4NeutronTrackingCut(0));
+
+    G4cout << "PhysicsList: neutron activation "
+           << (neutronActivation ? "ON (no G4NeutronTrackingCut)" : "OFF (G4NeutronTrackingCut active)")
+           << G4endl;
 }
 
 

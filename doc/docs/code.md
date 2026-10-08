@@ -19,11 +19,14 @@ The code works in single or in multi-thread mode. The number of worker threads i
 
 If set, the `G4FORCENUMBEROFTHREADS` environment variable overrides `-t`.
 
+The `-n` (`--neutron-activation`) option removes `G4NeutronTrackingCut` from the physics list, so slow
+neutrons are tracked until capture. Without it, neutrons are killed 10 µs after they are created.
+
 Header files derived from GEANT4 classes:
 
 * `DetectorConstruction.hh`: reads the GDML mass model and defines the custom materials (e.g. GAGG, FR4)
 
-* `PhysicsList.hh`: Livermore EM, QBBC hadronic physics, decay and radioactive decay
+* `PhysicsList.hh`: Livermore EM, QBBC hadronic physics, decay and radioactive decay; `G4NeutronTrackingCut` unless `-n` is given
 
 * `PrimaryGeneratorAction.hh`: General Particle Source (configured with `/gps/` commands)
 
