@@ -1,0 +1,122 @@
+G4RadioactiveDecay: 56 unstable levels without decay data are killed without
+emitting anything, and without a warning (Ta178[0X], Cm252, Bi198, ...)
+==============================================================================
+
+- Component: processes/hadronic/models/radioactive_decay
+  (G4VRadioactiveDecay::LoadDecayTable, DecayIt), data library
+  RadioactiveDecay6.1.2 (with G4ENSDFSTATE3.0)
+- Geant4 version: 11.4.1 (datasets RadioactiveDecay6.1.2, G4ENSDFSTATE3.0,
+  PhotonEvaporation6.1.2)
+- Platform: macOS 15.8, Apple silicon (arm64)
+- Severity: decay radiation is lost, and no warning is printed
+
+This is one of five related reports on the RadioactiveDecay6.1.2 data (see
+"Related reports" at the end).
+
+Summary
+-------
+
+ENSDFSTATE gives 147 levels with 1 s <= T1/2 < 10(1)^5 s that have no matching
+level in RadioactiveDecay6.1.2. For a ground state with no file, or a floating
+E = 0 level that is not in the file, LoadDecayTable returns an empty decay
+table. DecayIt then kills the nucleus at its decay time without secondaries
+(the "has no decays" branch). There is no warning, although the nucleus has a
+finite ENSDFSTATE lifetime.
+
+Of these 147 levels, 56 can be created in Geant4 and emit nothing in any
+decay. They include Ta178[0X] (T1/2 = 2.36 h), Cm252 (2.0 d) and Bi198 (10.3
+min).
+
+Attached:
+- check_C_no_decay_data.py: a standard-library Python script that lists the
+  147 levels, writes an rdecay01 macro that decays each of them, and
+  classifies the rdecay01 output;
+- check_C_no_decay_data.out: its output, including the classification of the
+  rdecay01 run;
+- rdecay01_C_no_decay_data.mac: a short macro for the unmodified example
+  extended/radioactivedecay/rdecay01 with three of the levels;
+- rdecay01_C_all_levels.mac: the macro for all 147 levels, written by the
+  script.
+
+How to reproduce
+----------------
+
+    source <geant4-install>/bin/geant4.sh
+    python3 check_C_no_decay_data.py                            # list; reads $GEANT4_DATA_DIR
+    cd <rdecay01 build dir>
+    ./rdecay01 rdecay01_C_no_decay_data.mac                     # three examples
+
+    python3 check_C_no_decay_data.py --macro=rdecay01_C_all_levels.mac
+    ./rdecay01 rdecay01_C_all_levels.mac > all_levels.log
+    python3 check_C_no_decay_data.py --log=all_levels.log       # classification
+
+The short macro decays 20,000 nuclei of each nuclide at rest, with
+/rdecay01/fullChain false (single decay); the long one decays 200 nuclei of
+each level. Read the table "Nb of generated particles" of each run.
+
+Results with rdecay01
+---------------------
+
+Short macro, 20,000 single decays each:
+
+    Nuclide         T1/2 (ENSDFSTATE)  Particles generated              Expected
+    --------------  -----------------  -------------------------------  ------------------------------
+    Co57 (control)  271.7 d            20000 nu_e, Fe57 excited levels  as observed
+    Ta178[0X]       2.36 h             none                             20000 nu_e (EC/beta+ to Hf178)
+    Cm252           2.0 d              none                             20000 beta-/alpha decays
+    Bi198           10.3 min           none                             20000 nu_e (EC/beta+ to Pb198)
+
+The nucleus decays with the ENSDFSTATE mean life (3.405 h for Ta178[0X]), but
+the "Nb of generated particles" table contains only the primary.
+
+All 147 levels, created with /gun/ion Z A 0 E flb:
+- 56 are created as requested and emit nothing in any decay;
+- 90 cannot be created as requested (Geant4 returns another level, usually the
+  ground state), so they are not affected;
+- 1 (Pm152[150X]) decays normally.
+
+The 56 silent levels, by half-life:
+
+    Level      T1/2
+    ---------  --------
+    Bk248[0Z]  9.0 y
+    Cm252      2.0 d
+    Lr264      4.9 h
+    Ta178[0X]  2.36 h
+    Rf267      1.3 h
+    Db266      24 min
+    Bi198      10.3 min
+    Md254      10 min
+    Es246[0X]  7.5 min
+    Cm236      6.8 min
+    Tl191[0X]  5.2 min
+    Po222      2 min
+    Hg187      1.9 min
+    43 more    1-84 s
+
+The full list is in check_C_no_decay_data.out.
+
+Ta178[0X] is produced, for example, in proton-induced spallation of tungsten.
+In our activation study, 8.5x10^7 protons (5-700 MeV) on a satellite mass
+model produced it 224 times, and all of its decay radiation is lost.
+
+Possible fixes
+--------------
+
+- Add decay data for these levels.
+- In LoadDecayTable or DecayIt, issue a warning (or a JustWarning G4Exception,
+  once per nuclide) when an unstable nucleus with a finite ENSDFSTATE lifetime
+  has no decay channel.
+
+Related reports
+---------------
+
+Five reports on RadioactiveDecay6.1.2, submitted separately:
+- A. Q <= 0 in the detail lines: no beta particle emitted
+- B. Ground states with a spurious IT branch, or matched to a floating level:
+  wrong decay modes, some decays emit nothing
+- C. Unstable levels without decay data are killed without emitting anything,
+  and without a warning (this report)
+- D. Wrong decay-mode totals in some levels
+- E. P-line half-lives disagree with ENSDFSTATE; README_RDM does not match the
+  file format

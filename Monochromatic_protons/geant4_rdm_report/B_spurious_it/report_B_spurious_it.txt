@@ -1,0 +1,154 @@
+RadioactiveDecay6.1.2: ground states with a spurious IT branch, or matched to
+a floating level, get wrong decay modes and emit nothing in part of their
+decays (Y92, Tb154, Tm164, ...)
+==============================================================================
+
+- Component: processes/hadronic/models/radioactive_decay
+  (G4VRadioactiveDecay::LoadDecayTable), data library RadioactiveDecay6.1.2
+  (with G4ENSDFSTATE3.0)
+- Geant4 version: 11.4.1 (datasets RadioactiveDecay6.1.2, G4ENSDFSTATE3.0,
+  PhotonEvaporation6.1.2)
+- Platform: macOS 15.8, Apple silicon (arm64)
+- Severity: physics results are wrong, and no warning is printed
+
+This is one of five related reports on the RadioactiveDecay6.1.2 data (see
+"Related reports" at the end).
+
+Summary
+-------
+
+Sixteen levels get decay modes that ENSDF does not give them. In twelve of
+them, Geant4 decays the nucleus but emits no particle at all in a fixed
+fraction of decays (up to 93%), because of an IT branch that the level should
+not have:
+
+1. Ten ground states have an IT summary line in the data (an isomeric
+   transition of the ground state onto itself), e.g. Y92 50%, Br92 50%, Eu140
+   50%, Au190 50%, Ir186 20%, Tb154 18%.
+2. Six fixed levels (five ground states and Ho156[52.37]) are matched to a
+   floating level of the library. ENSDFSTATE lists a fixed level and a
+   floating level at the same energy, but the decay file only has the floating
+   one. LoadDecayTable takes "the first level which matches excitation energy
+   regardless of floating level", so the fixed level gets the decay table of
+   the other level, including its IT branch if it has one. Example: the Tm164
+   ground state emits nothing in 80% of its decays.
+
+No G4Exception or warning is issued.
+
+Attached:
+- check_B_spurious_it.py: a standard-library Python script that finds both
+  kinds of levels;
+- check_B_spurious_it.out: its output;
+- rdecay01_B_spurious_it.mac: a macro for the unmodified example
+  extended/radioactivedecay/rdecay01 that shows the Geant4 behaviour.
+
+How to reproduce
+----------------
+
+    source <geant4-install>/bin/geant4.sh
+    python3 check_B_spurious_it.py          # reads $GEANT4_DATA_DIR
+    cd <rdecay01 build dir>
+    ./rdecay01 rdecay01_B_spurious_it.mac
+
+The macro decays 20,000 nuclei of each nuclide at rest, with
+/rdecay01/fullChain false (single decay). Read the table "Nb of generated
+particles" of each run.
+
+Results with rdecay01
+---------------------
+
+Counts of particles generated in 20,000 single decays:
+
+    Nuclide               Case  e-     e+   anti_nu_e  nu_e   Expected
+    --------------------  ----  -----  ---  ---------  -----  -------------------------
+    Y90 (control)         -     20000  0    20000      0      as observed
+    Co57 (control)        -     0      0    0          20000  as observed
+    Y92                   1     0      0    10072      0      20000 e-, 20000 anti_nu_e
+    Tb154                 1     0      489  0          16478  20000 nu_e
+    Tm164 (ground state)  2     0      201  0          3935   20000 nu_e
+
+In every case the nucleus decays with the correct ENSDFSTATE mean life; in the
+IT fraction of the decays nothing is produced. (Y92 also emits no electron in
+its beta- decays, because of the Q <= 0 problem of report A.)
+
+1. Ground states with an IT branch onto themselves
+--------------------------------------------------
+
+Example, z39.a92 (Y92, beta- 100% in ENSDF):
+
+    P            0  -        12744
+                                  BetaMinus            0             0.5
+                                         IT            0             0.5
+                                  BetaMinus            0  -       85.741            0    uniqueFirstForbidden
+
+There is no IT detail line, and a ground state has no lower level to make an
+isomeric transition to.
+
+Affected levels:
+
+    Nuclide  IT fraction
+    -------  -----------
+    Br92     0.5
+    Y92      0.5
+    Eu140    0.5
+    Au190    0.5
+    No253    0.444
+    Ir186    0.2
+    Tb154    0.179
+    Sb128    0.035
+    Tc102    0.020
+    Np240    0.0012
+
+2. Fixed levels matched to a floating level of the library
+----------------------------------------------------------
+
+Example, Tm164:
+
+    ENSDFSTATE:   69  164   0  -   1.687953e+11 ns   (T1/2 = 1.95 min, ground state, EC/beta+ 100%)
+                  69  164   0 +X   4.414647e+11 ns   (T1/2 = 5.1 min, isomer)
+    z69.a164:     P   0 +X   306     ... IT 0.8, EC/beta+ 0.2
+
+The ground state (no floating flag) is matched to the 0 +X level, so it decays
+by IT in 80% of the cases and emits nothing. Its EC/beta+ branches are also
+those of the other level.
+
+The other five levels get the decay modes of a different level too.
+Ho156[52.37] also emits nothing in 93% of its decays; for Rh92, La128, Ta160
+and Md258, which get no IT branch, the modes or their fractions may still be
+wrong (Md258, for example, gets alpha 0.77 and beta- 0.23).
+
+Affected levels (decay modes they get, from check_B_spurious_it.out):
+
+    Fixed level (T1/2)    Library level used (T1/2)  Decay modes given
+    --------------------  -------------------------  ----------------------
+    Rh92 (4.66 s)         Rh92[0X] (0.53 s)          EC/beta+
+    La128 (5.18 min)      La128[0X] (1.4 min)        EC/beta+
+    Ho156[52.37] (9.5 s)  Ho156[52.37X] (7.6 min)    beta+ 0.072, IT 0.928
+    Tm164 (1.95 min)      Tm164[0X] (5.1 min)        EC/beta+ 0.2, IT 0.8
+    Ta160 (1.55 s)        Ta160[0X] (1.7 s)          alpha 0.60, beta+ 0.40
+    Md258 (51.5 d)        Md258[0X] (57 min)         alpha 0.77, beta- 0.23
+
+Possible fixes
+--------------
+
+- Remove the IT summary lines of the ten ground states in case 1 (and
+  renormalise the other modes), regenerating them from ENSDF.
+- Add decay data for the six fixed levels in case 2.
+- In LoadDecayTable:
+  - when the requested level has no floating flag, prefer an exact match (same
+    energy, no flag) and issue a warning when only a floating level matches;
+  - issue a warning when a ground state (E = 0, no floating flag) has an IT
+    branch.
+
+Related reports
+---------------
+
+Five reports on RadioactiveDecay6.1.2, submitted separately:
+- A. Q <= 0 in the detail lines: no beta particle emitted
+- B. Ground states with a spurious IT branch, or matched to a floating level:
+  wrong decay modes, some decays emit nothing (this report)
+- C. Unstable levels without decay data are killed without emitting anything,
+  and without a warning
+- D. Wrong decay-mode totals in some levels
+- E. P-line half-lives disagree with ENSDFSTATE; README_RDM does not match the
+  file format

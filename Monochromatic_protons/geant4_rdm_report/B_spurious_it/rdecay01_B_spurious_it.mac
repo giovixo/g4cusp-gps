@@ -1,0 +1,27 @@
+# Report B: decays that emit nothing because of an IT branch that leads nowhere
+# Run with the unmodified example
+#   examples/extended/radioactivedecay/rdecay01
+# and read the "Nb of generated particles" table of each run.
+/control/verbose 2
+/run/verbose 0
+/process/had/rdm/thresholdForVeryLongDecayTime 1.0e+60 year
+/run/initialize
+/gun/particle ion
+/rdecay01/fullChain false
+/run/printProgress 0
+#
+# Controls (correct data)
+/gun/ion 39 90
+/run/beamOn 20000
+/gun/ion 27 57
+/run/beamOn 20000
+#
+# 1. Ground state with an IT branch onto itself
+/gun/ion 39 92
+/run/beamOn 20000
+/gun/ion 65 154
+/run/beamOn 20000
+#
+# 2. Ground state matched to a floating level of the library
+/gun/ion 69 164
+/run/beamOn 20000

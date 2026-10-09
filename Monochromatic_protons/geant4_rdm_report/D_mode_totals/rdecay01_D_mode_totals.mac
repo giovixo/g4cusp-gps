@@ -1,0 +1,25 @@
+# Report D: wrong decay-mode totals
+# Run with the unmodified example
+#   examples/extended/radioactivedecay/rdecay01
+# and read the "Nb of generated particles" table of each run.
+/control/verbose 2
+/run/verbose 0
+/process/had/rdm/thresholdForVeryLongDecayTime 1.0e+60 year
+/run/initialize
+/gun/particle ion
+/rdecay01/fullChain false
+/run/printProgress 0
+#
+# Control (correct data)
+/gun/ion 27 57
+/run/beamOn 20000
+#
+# Pu233, Np231, Tl183, Tb157
+/gun/ion 94 233
+/run/beamOn 20000
+/gun/ion 93 231
+/run/beamOn 20000
+/gun/ion 81 183
+/run/beamOn 20000
+/gun/ion 65 157
+/run/beamOn 20000
