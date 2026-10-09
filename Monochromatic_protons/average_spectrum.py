@@ -1,41 +1,53 @@
 """
 average_spectrum.py
 ===================
-Compute the steady-state orbit-averaged background spectrum after a long
+Compute the steady-state out-of-belt background spectrum after a long
 mission duration, and identify the isotopes responsible for the most
 prominent spectral lines.
 
 Physical basis
 --------------
-After many orbits the activation has reached a periodic steady state.
-The orbit-averaged spectrum is:
+S(tau, E) [counts/s/keV] is the spectrum at decay time tau after one SPENVIS
+time step dt of irradiation at the mean flux F_mean (accumulate_spectra.py).
+With the SPENVIS flux F repeating periodically and constant during each step,
+the spectrum at the end of step j is (as in activation_history.py)
 
-    <S(E)> = (1 / T_orb) * integral_0^inf S(tau, E) dtau
+    S_j(E) = sum_k K_k(E) F[j-k] / F_mean,
+    K_k(E) = (1/dt) * integral_{k dt}^{(k+1) dt} S(tau, E) dtau.
 
-where S(tau, E) [counts/s/keV] is the spectrum at decay time tau after
-a single reference irradiation (from accumulate_spectra.py).
+Its average over the out-of-belt steps j, after a mission of duration T, is
+
+    <S(E)> = sum_{k < T/dt} w_k K_k(E),   w_k = mean_{j out of belt} F[j-k] / F_mean.
+
+w_k is computed exactly for the lags within one SPENVIS period; for longer
+lags it is replaced by its period mean (the orbit-mean F / F_mean), since the
+kernel then varies little within a period.  With --all-orbit the average is
+over all steps and reduces to (<F>/F_mean / dt) * integral_0^T S dtau.
+
+Nuclides with half-lives much longer than T have not reached their steady
+state and count with the activity built up to T.  Without --duration, T is the
+end of the decay-time grid of compute_activities.py (1e9 s by default).
 
 Per-isotope decomposition
 -------------------------
-If activities_pkl and spectra_dir are supplied, the contribution of each
-isotope i (summed over all volumes and simulation energies) is:
+If activities_pkl and spectra_dir are given, the activity of each (volume,
+isotope) after one step, A_{v,i}(tau) = sum_j N_j a_{j,v,i}(tau), is averaged
+in the same way and multiplied by its spectrum per decay F_{v,i}(E):
 
-    <S_i(E)> = (1 / T_orb) * sum_{v,e} spec_{i,v}(E)
-               * n_prim(e) * integral_0^inf A_{i,v,e}(tau) dtau
+    <S_i(E)> = sum_v <A_{v,i}> F_{v,i}(E).
 
-where spec_{i,v} is the background spectrum file [counts/s/keV/decay],
-n_prim(e) is the number of primaries for energy band e, and A_{i,v,e}(tau)
-is the normalised activity [Bq/primary].  The dominant isotope at each
-spectral peak is then the one with the largest <S_i(E_peak)>.
+The isotopes sum to <S(E)> when accumulate_spectra.py ran without an activity
+threshold.  The dominant isotope at each spectral peak is the one with the
+largest <S_i(E_peak)>.
 
 Usage (CLI)
 -----------
     # Total spectrum only
-    python average_spectrum.py spectra.pkl count_rate.dat AP9MEAN.txt
+    python average_spectrum.py output/spectra.pkl AP9MEAN.txt
 
-    # With per-isotope line identification
-    python average_spectrum.py spectra.pkl count_rate.dat AP9MEAN.txt \\
-        --activities activities.pkl \\
+    # With per-isotope line identification, 3-year mission
+    python average_spectrum.py output/spectra.pkl AP9MEAN.txt --duration 3y \\
+        --activities output/activities.pkl \\
         --spectra-dir result_spectra/ \\
         --save-plot avg_spectrum.pdf
 
@@ -44,8 +56,8 @@ Usage (library)
     from average_spectrum import compute_average_spectrum, plot_average_spectrum
 
     en_s, avg_spec, iso_contribs = compute_average_spectrum(
-        "spectra.pkl", "count_rate.dat", "AP9MEAN.txt",
-        activities_pkl="activities.pkl", spectra_dir="result_spectra/",
+        "output/spectra.pkl", "AP9MEAN.txt",
+        activities_pkl="output/activities.pkl", spectra_dir="result_spectra/",
     )
     plot_average_spectrum(en_s, avg_spec, iso_contribs, save_path="avg.pdf")
 """
@@ -61,59 +73,48 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
-# Compatibility: np.trapezoid (NumPy >= 2.0) vs np.trapz (NumPy < 2.0)
-_trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz", None)
-
 try:
-    from activation_history import _read_total_flux
+    from activation_history import (_parse_duration, _prepare_flux_and_norm,
+                                    belt_mask, cumulative_integral, lag_weights,
+                                    step_kernel)
 except ImportError:
     sys.exit("ERROR: activation_history.py not found.")
 
 try:
-    from accumulate_spectra import load_outputs, EN_S, load_spectrum, spectrum_path
-    from compute_activities import load_outputs as load_activities
+    from accumulate_spectra import (load_outputs, EN_S, DELTA_E,
+                                    load_spectrum, spectrum_path)
+    from compute_activities import load_outputs as load_activities, times_of
 except ImportError:
     sys.exit("ERROR: accumulate_spectra.py or compute_activities.py not found.")
 
-try:
-    from spenvis_parser import parse_spenvis, band_fluxes_to_primaries
-except ImportError:
-    sys.exit("ERROR: spenvis_parser.py not found.")
-
 
 # ---------------------------------------------------------------------------
-# Integration helper
+# Lag-weighted average
 # ---------------------------------------------------------------------------
 
-def _integrate_rows(
-    tau:    np.ndarray,
-    values: np.ndarray,
-    n_interp: int = 1000,
+def weighted_average(
+    tau:      np.ndarray,
+    values:   np.ndarray,
+    dt:       float,
+    w:        np.ndarray,
+    w_far:    float,
+    t_max:    float,
+    chunk:    int = 128,
 ) -> np.ndarray:
     """
-    Integrate rows of `values` (shape n_tau × n_col) over tau using a fine
-    log-spaced grid.  Returns shape (n_col,).
-
-    Uses lin-log interpolation (linear in tau, log in value) for accuracy
-    on the coarse decade-spaced tau grid.
+    sum_k w_k K_k for every column of values (n_tau x n_col), with K_k the
+    step-averaged kernel: exact lags k < len(w), then the period-mean weight
+    w_far for the lags up to t_max.  Returns shape (n_col,).
     """
-    tau_fine  = np.logspace(np.log10(tau[0]), np.log10(tau[-1]), n_interp)
-    n_col     = values.shape[1] if values.ndim == 2 else 1
-    vals_2d   = values.reshape(len(tau), -1)
-    fine      = np.zeros((n_interp, vals_2d.shape[1]))
-
-    for c in range(vals_2d.shape[1]):
-        col = vals_2d[:, c]
-        pos = col > 0
-        if not pos.any():
-            continue
-        tau_p = tau[pos]
-        log_v = np.log(col[pos])
-        inside = (tau_fine >= tau_p[0]) & (tau_fine <= tau_p[-1])
-        if inside.any():
-            fine[inside, c] = np.exp(np.interp(tau_fine[inside], tau_p, log_v))
-
-    return _trapz(fine, tau_fine, axis=0)
+    v = np.asarray(values, dtype=float).reshape(len(tau), -1)
+    L = len(w)
+    out = np.empty(v.shape[1])
+    for c in range(0, v.shape[1], chunk):
+        vc = v[:, c:c + chunk]
+        near = w @ step_kernel(tau, vc, dt, L)
+        I = cumulative_integral(tau, vc, [L * dt, max(t_max, L * dt)])
+        out[c:c + chunk] = near + w_far * (I[1] - I[0]) / dt
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -122,64 +123,77 @@ def _integrate_rows(
 
 def compute_average_spectrum(
     spectra_pkl:     str | Path,
-    count_rate_file: str | Path,
     spenvis_file:    str | Path,
     activities_pkl:  str | Path | None = None,
     spectra_dir:     str | Path | None = None,
-    energies:        list[float] | None = None,
-    timestep:        float = 60.0,
-    R:               float = 5000.0,
-    thetamax:        float = 0.8021,
-    n_interp:        int   = 1000,
+    duration_s:      float | None = None,
+    all_orbit:       bool  = False,
+    belt_threshold:  float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray] | None]:
     """
-    Compute the steady-state orbit-averaged background spectrum.
+    Compute the steady-state out-of-belt (or, with all_orbit, orbit-averaged)
+    background spectrum.
 
     Parameters
     ----------
     spectra_pkl     : spectra.pkl from accumulate_spectra.py
-    count_rate_file : count_rate.dat from accumulate_spectra.py
-    spenvis_file    : SPENVIS AP9/AE9 file (for T_orb)
+    spenvis_file    : the SPENVIS file used by accumulate_spectra.py
     activities_pkl  : activities.pkl from compute_activities.py (optional;
                       required for per-isotope decomposition)
     spectra_dir     : directory with {volume}_{isotope}_S-mode.dat files
                       (optional; required for per-isotope decomposition)
-    energies        : band edge energies [MeV] matching simulation grid
-    timestep, R, thetamax : simulation geometry (for n_prim calculation)
-    n_interp        : points in the fine tau integration grid
+    duration_s      : mission duration T [s] (default: end of the time grid)
+    all_orbit       : average over all steps instead of the out-of-belt ones
+    belt_threshold  : flux above which a step is in the belt [p/cm²/s]
 
     Returns
     -------
     en_s        : detector energy axis [keV]
-    avg_spec    : orbit-averaged spectrum [counts/s/keV]
+    avg_spec    : average spectrum [counts/s/keV]
     iso_contribs: dict {isotope_name: avg_spectrum_array} or None
     """
-    if energies is None:
-        energies = [7, 10, 15, 20, 30, 40, 50, 60, 70, 100, 150, 200, 300, 400]
-
-    spectra_pkl     = Path(spectra_pkl)
-    count_rate_file = Path(count_rate_file)
+    spectra_pkl = Path(spectra_pkl)
 
     # ---- Load total spectra ------------------------------------------------
-    spectra_df, _ = load_outputs(
-        str(spectra_pkl.parent), fmt=spectra_pkl.suffix.lstrip(".")
-    )
-    tau   = spectra_df.index.to_numpy(dtype=float)
-    S_mat = spectra_df.values.astype(float)
-    print(f"Spectra: {S_mat.shape[0]} time points × {S_mat.shape[1]} channels")
-    print(f"Decay time range: {tau[0]:.2e} – {tau[-1]:.2e} s")
+    spectra_df, _ = load_outputs(spectra_pkl.parent, fmt=spectra_pkl.suffix.lstrip("."))
+    attrs = spectra_df.attrs
+    if "timestep_s" not in attrs or "nprim_per_step" not in attrs:
+        sys.exit(f"ERROR: {spectra_pkl} has no normalisation attrs; "
+                 "rerun accumulate_spectra.py.")
+    if attrs.get("activity_threshold", 0) > 0:
+        print("  [WARN] spectra accumulated with an activity threshold: "
+              "the average is underestimated.")
 
-    # ---- T_orb from SPENVIS ------------------------------------------------
-    _, mjd = _read_total_flux(spenvis_file)
-    dt     = float(np.median(np.diff(mjd)) * 86400.0)
-    T_orb  = (mjd[-1] - mjd[0]) * 86400.0 + dt
-    print(f"Orbital period T_orb = {T_orb:.1f} s = {T_orb/3600:.2f} h")
+    tau   = spectra_df.index.to_numpy(dtype=float)
+    S_mat = spectra_df.to_numpy(dtype=float)
+    print(f"Spectra: {S_mat.shape[0]} time points × {S_mat.shape[1]} channels, "
+          f"decay times {tau[0]:.2e} – {tau[-1]:.2e} s")
+
+    # ---- Orbit flux and lag weights ------------------------------------------
+    flux, _, F_mean, dt = _prepare_flux_and_norm(spenvis_file,
+                                                 bool(attrs.get("in_belt_only", False)))
+    if abs(dt - attrs["timestep_s"]) > 1e-6 * dt:
+        sys.exit(f"ERROR: time step of {spenvis_file} ({dt:.3f} s) differs from the one "
+                 f"of {spectra_pkl.name} ({attrs['timestep_s']:.3f} s).")
+    if duration_s is not None and duration_s > tau[-1]:
+        print(f"  [WARN] duration {duration_s:.3g} s is beyond the time grid; "
+              f"integrating up to {tau[-1]:.3g} s.")
+    T = tau[-1] if duration_s is None else min(duration_s, tau[-1])
+
+    select = np.ones(len(flux), bool) if all_orbit else ~belt_mask(flux, belt_threshold)
+    if not select.any():
+        sys.exit("ERROR: no out-of-belt steps in the SPENVIS file.")
+    w_far = float(np.mean(flux) / F_mean)
+    w = lag_weights(flux, F_mean, select, max(1, min(len(flux), int(T // dt))))
+    print(f"Mission duration T = {T:.3g} s = {T / (365.25 * 86400):.3g} yr; average over "
+          + ("all steps" if all_orbit else f"the out-of-belt steps ({select.mean():.1%})"))
+
+    def average(values: np.ndarray) -> np.ndarray:
+        return weighted_average(tau, values, dt, w, w_far, T)
 
     # ---- Total average spectrum --------------------------------------------
-    integral = _integrate_rows(tau, S_mat, n_interp)
-    avg_spec = integral / T_orb
-    total_rate = avg_spec.sum() * 2.0   # dE = 2 keV
-    print(f"Orbit-averaged total count rate: {total_rate:.4e} counts/s")
+    avg_spec = average(S_mat)
+    print(f"Average total count rate: {avg_spec.sum() * DELTA_E:.4e} counts/s")
 
     # ---- Per-isotope decomposition (optional) ------------------------------
     iso_contribs: dict[str, np.ndarray] | None = None
@@ -189,60 +203,31 @@ def compute_average_spectrum(
         spectra_dir    = Path(spectra_dir)
         print("Computing per-isotope contributions...")
 
-        acts_df, _ = load_activities(
-            str(activities_pkl.parent), fmt=activities_pkl.suffix.lstrip(".")
-        )
+        acts_df, _ = load_activities(activities_pkl.parent,
+                                     fmt=activities_pkl.suffix.lstrip("."))
         time_cols = [c for c in acts_df.columns if c.startswith("t_")]
-        act_tau   = np.array([float(c[2:]) for c in time_cols])
+        nprim     = {float(e): n for e, n in attrs["nprim_per_step"].items()}
 
-        # n_primaries per band (same calculation as in accumulate_spectra.py)
-        _, band_fluxes = parse_spenvis(spenvis_file, energies=energies)
-        n_prim_per_band = band_fluxes_to_primaries(
-            energies, band_fluxes, timestep=timestep, R=R, thetamax=thetamax
-        )
-        sim_energies  = energies[:-1]
-        e_to_nprim    = {float(e): n for e, n in zip(sim_energies, n_prim_per_band)}
+        # Activity of each (volume, isotope) after one step [Bq]
+        e_level = acts_df.index.get_level_values("energy_MeV").astype(float)
+        keep    = e_level.isin(list(nprim))
+        weights = np.array([nprim[e] for e in e_level[keep]])
+        pair_act = (pd.DataFrame(acts_df.loc[keep, time_cols].to_numpy(dtype=float)
+                                 * weights[:, None], index=acts_df.index[keep])
+                      .groupby(level=["volume", "isotope"]).sum())
+        pair_avg = average(pair_act.to_numpy().T)
 
-        # Accumulate per-isotope: sum contributions across all volumes and energies
         iso_acc: dict[str, np.ndarray] = {}
-        n_channels = len(EN_S)
-
-        for (energy_MeV, volume, isotope), row in acts_df.iterrows():
-            n_prim = e_to_nprim.get(energy_MeV)
-            if n_prim is None:
+        for (volume, isotope), a in zip(pair_act.index, pair_avg):
+            if a <= 0:
                 continue
-
-            spec_file = spectrum_path(spectra_dir, volume, isotope)
-            spec = load_spectrum(spec_file)
+            spec = load_spectrum(spectrum_path(spectra_dir, volume, isotope))
             if spec is None:
                 continue
-
-            # Integral of A(tau) dtau [decays/primary * s] on the activity grid
-            A_arr = row[time_cols].to_numpy(dtype=float)
-            pos   = A_arr > 0
-            if not pos.any():
-                continue
-
-            # Integrate using the fine grid
-            tau_p  = act_tau[pos]
-            A_p    = A_arr[pos]
-            if len(tau_p) < 2:
-                continue
-            tau_fine_i = np.logspace(np.log10(tau_p[0]), np.log10(tau_p[-1]),
-                                     min(n_interp, 500))
-            log_A   = np.log(A_p)
-            inside  = (tau_fine_i >= tau_p[0]) & (tau_fine_i <= tau_p[-1])
-            A_fine  = np.zeros(len(tau_fine_i))
-            A_fine[inside] = np.exp(np.interp(tau_fine_i[inside], tau_p, log_A))
-            int_A   = _trapz(A_fine, tau_fine_i)   # [Bq/primary * s = decays/primary]
-
-            # Contribution to average spectrum [counts/s/keV]
-            contrib = spec * (n_prim * int_A / T_orb)
-
             if isotope in iso_acc:
-                iso_acc[isotope] += contrib
+                iso_acc[isotope] += spec * a
             else:
-                iso_acc[isotope] = contrib.copy()
+                iso_acc[isotope] = spec * a
 
         iso_contribs = iso_acc
         print(f"  {len(iso_contribs)} isotopes with spectral contributions.")
@@ -459,7 +444,7 @@ def plot_average_spectrum(
     min_sep_dex:  float = 0.10,
     window_keV:   float = 5.0,
     cache_file:   str | Path = ".gamma_line_cache.pkl",
-    title:        str   = "Steady-state orbit-averaged background spectrum",
+    title:        str   = "Steady-state out-of-belt background spectrum",
     save_path:    str | Path | None = None,
 ) -> None:
     """
@@ -477,7 +462,7 @@ def plot_average_spectrum(
     )
 
     pos        = avg_spec > 0
-    total_rate = avg_spec.sum() * 2.0   # dE = 2 keV
+    total_rate = avg_spec.sum() * DELTA_E
 
     # ---- Figure ------------------------------------------------------------
     fig, ax = plt.subplots(figsize=(3.5, 3.0))
@@ -590,17 +575,17 @@ def main(argv: list[str] | None = None) -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("spectra_pkl",     help="spectra.pkl from accumulate_spectra.py")
-    p.add_argument("count_rate_file", help="count_rate.dat from accumulate_spectra.py")
-    p.add_argument("spenvis_file",    help="SPENVIS AP9/AE9 output file")
+    p.add_argument("spenvis_file",    help="SPENVIS file used by accumulate_spectra.py")
+    p.add_argument("--duration",      default=None, metavar="T",
+                   help="Mission duration, e.g. 3y, 18mo (default: end of the time grid).")
+    p.add_argument("--all-orbit",     action="store_true",
+                   help="Average over all time steps instead of the out-of-belt ones.")
+    p.add_argument("--belt-threshold", type=float, default=0.0, metavar="FLUX",
+                   help="Total flux [p/cm²/s] above which a step is in the belt.")
     p.add_argument("--activities",    default=None, metavar="PKL",
                    help="activities.pkl for per-isotope line identification.")
     p.add_argument("--spectra-dir",   default=None, metavar="DIR",
                    help="result_spectra/ directory for per-isotope decomposition.")
-    p.add_argument("--energies", nargs="+", type=float, metavar="E",
-                   default=[7,10,15,20,30,40,50,60,70,100,150,200,300,400])
-    p.add_argument("--timestep",  type=float, default=60.0)
-    p.add_argument("--R",         type=float, default=5000.0)
-    p.add_argument("--thetamax",  type=float, default=0.8021)
     p.add_argument("--n-label",   type=int, default=5, metavar="N",
                    help="Number of peaks to label.")
     p.add_argument("--prominence", type=float, default=0.5,
@@ -611,22 +596,18 @@ def main(argv: list[str] | None = None) -> None:
                    help="+/- energy window for gamma-line DB query [keV].")
     p.add_argument("--cache", default=".gamma_line_cache.pkl", metavar="FILE",
                    help="Cache file for gamma-line DB responses.")
-    p.add_argument("--n-interp",  type=int, default=1000)
     p.add_argument("--save-dat",  default=None, metavar="PATH")
     p.add_argument("--save-plot", default=None, metavar="PATH")
     args = p.parse_args(argv)
 
     en_s, avg_spec, iso_contribs = compute_average_spectrum(
         spectra_pkl=args.spectra_pkl,
-        count_rate_file=args.count_rate_file,
         spenvis_file=args.spenvis_file,
         activities_pkl=args.activities,
         spectra_dir=args.spectra_dir,
-        energies=args.energies,
-        timestep=args.timestep,
-        R=args.R,
-        thetamax=args.thetamax,
-        n_interp=args.n_interp,
+        duration_s=_parse_duration(args.duration) if args.duration else None,
+        all_orbit=args.all_orbit,
+        belt_threshold=args.belt_threshold,
     )
 
     if args.save_dat:

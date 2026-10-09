@@ -5,35 +5,44 @@ Compute the time history of the activation-induced detector background rate.
 
 Two modes
 ---------
-Single-orbit mode (default)
-    Convolves one pass of the SPENVIS orbital flux with the reference
-    count-rate decay curve R(tau).
+Single-period mode (default)
+    Convolves one pass of the SPENVIS orbital flux file with the reference
+    count-rate curve R(tau), starting from no activation.
 
 Long-term mode (--duration)
-    Tiles the orbital flux over an arbitrary total duration under the
-    assumption that the orbit repeats identically each period.  Uses a
-    single FFT convolution on the full tiled array, so a 3-year run at
-    60-second steps (~1.6M steps) completes in ~1-2 s.
+    Tiles the SPENVIS flux over an arbitrary total duration under the
+    assumption that it repeats identically each period.  Uses a single FFT
+    convolution on the full tiled array, so a 3-year run at 60-second steps
+    (~1.6M steps) completes in a few seconds.
 
 Physical model
 --------------
-Each orbital timestep i is treated as an instantaneous irradiation with
-fluence  phi_i = F[i] * dt  [protons/cm²].
+R(tau) [counts/s] (accumulate_spectra.py) is the rate at time tau after one
+time step dt of irradiation at the mean flux F_mean.  The SPENVIS flux F[i] is
+taken as constant during each step i, so by linearity of the Bateman
+equations the rate at the end of step j is
 
-The reference count-rate curve R(tau) was computed for a single 60-second
-irradiation at the orbit-mean flux F_mean, giving n_prim = F_mean * dt * A
-primaries.  By linearity of the Bateman equations:
+    C[j] = sum_{k=0}^{j} K_k * F[j-k] / F_mean,
+    K_k  = (1/dt) * integral_{k dt}^{(k+1) dt} R(tau) dtau,
 
-    C[j] = sum_{k=0}^{j} R((k+1)*dt) * F[j-k] / F_mean
+the step-averaged kernel (it is also the rate averaged over step j if each
+step is an instantaneous irradiation at its start).  Sampling R at the lags
+(k+1) dt instead would miss the decays within one step of the irradiation:
+under constant flux a nuclide of mean life tau_m would get only
+x e^-x / (1 - e^-x), x = dt / tau_m, of its equilibrium rate.
 
-This is a causal convolution evaluated via FFT.
+R is log-linear between its grid points (exact for a single exponential),
+constant before the first point and zero after the last.
 
-Interpolation of R(tau) onto the uniform dt grid uses lin-log (linear in
-tau, logarithmic in R), which is exact for pure exponential decay.
+Out-of-belt averages
+--------------------
+A step is in the belt when the total integral flux (first SPENVIS column) is
+above --belt-threshold (default 0).  The running average of the long-term
+mode and the summary rates use the out-of-belt steps only.
 
 Usage (CLI)
 -----------
-    # Single orbit
+    # Single period
     python activation_history.py count_rate.dat AP9MEAN.txt
 
     # Long-term, 3 years, 1-week running average
@@ -45,11 +54,11 @@ Usage (library)
 ---------------
     from activation_history import compute_history, compute_long_term_history
 
-    # Single orbit
-    t, C = compute_history("count_rate.dat", "AP9MEAN.txt")
+    # Single period
+    t, C, out = compute_history("count_rate.dat", "AP9MEAN.txt")
 
     # Long-term
-    t, C, C_avg = compute_long_term_history(
+    t, C, C_avg, out = compute_long_term_history(
         "count_rate.dat", "AP9MEAN.txt",
         duration_s=3*365.25*24*3600, avg_window_s=7*24*3600
     )
@@ -148,48 +157,88 @@ def _parse_duration(s: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Interpolation
+# Decay-curve integrals and kernel
 # ---------------------------------------------------------------------------
 
-def interpolate_R_on_grid(
+def cumulative_integral(
+    tau:    np.ndarray,
+    values: np.ndarray,
+    t:      np.ndarray | float,
+) -> np.ndarray:
+    """
+    Integral from 0 to each t of every column of values (shape n_tau x n_col,
+    or n_tau), with the curve log-linear between the tau points (exact for a
+    single exponential), constant before tau[0] and zero after tau[-1].
+
+    Returns shape (len(t), n_col).
+    """
+    tau = np.asarray(tau, dtype=float)
+    v   = np.asarray(values, dtype=float).reshape(len(tau), -1)
+    t   = np.atleast_1d(np.asarray(t, dtype=float))
+
+    h  = np.diff(tau)[:, None]
+    y0 = v[:-1]
+    y1 = v[1:]
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        r = np.log(y1 / y0)
+        loglin = (y0 > 0) & (y1 > 0) & (np.abs(r) > 1e-9)
+        seg = np.where(loglin, h * (y1 - y0) / r, 0.5 * h * (y0 + y1))
+    I_nodes = tau[0] * v[0] + np.vstack([np.zeros(v.shape[1]), np.cumsum(seg, axis=0)])
+
+    out    = np.empty((len(t), v.shape[1]))
+    before = t <= tau[0]
+    after  = t >= tau[-1]
+    mid    = ~before & ~after
+    out[before] = t[before, None] * v[0]
+    out[after]  = I_nodes[-1]
+    if mid.any():
+        n = np.searchsorted(tau, t[mid], side="right") - 1
+        s = ((t[mid] - tau[n]) / (tau[n + 1] - tau[n]))[:, None]
+        a, b, hh, rr = y0[n], y1[n], h[n], r[n]
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+            part = np.where(loglin[n], hh * a * np.expm1(s * rr) / rr,
+                            hh * (a * s + 0.5 * (b - a) * s**2))
+        out[mid] = I_nodes[n] + part
+    return out
+
+
+def step_kernel(
     tau:     np.ndarray,
     R:       np.ndarray,
     dt:      float,
     n_steps: int,
 ) -> np.ndarray:
     """
-    Interpolate R(tau) onto a uniform grid tau_k = (k+1)*dt, k=0..n_steps-1.
-
-    Uses lin-log interpolation (linear in tau, log in R), which is exact for
-    exponential decay.  Points beyond the data range are set to 0; points
-    before the first data point get R[0] (conservative nearest-neighbour).
-
-    The result is truncated at the first step where R_grid < R_grid[0] * 1e-10
-    and padded with zeros, to avoid convolving with negligibly small values.
+    Step-averaged kernel K_k = (1/dt) * integral_{k dt}^{(k+1) dt} R dtau,
+    k = 0 .. n_steps-1, for every column of R.  Shape (n_steps, n_col).
     """
-    tau_grid = (np.arange(n_steps) + 1.0) * dt
+    I = cumulative_integral(tau, R, np.arange(n_steps + 1) * dt)
+    return np.diff(I, axis=0) / dt
 
-    pos = R > 0
-    if not pos.any():
-        return np.zeros(n_steps)
 
-    tau_data   = tau[pos]
-    log_R_data = np.log(R[pos])
+def belt_mask(flux: np.ndarray, threshold: float = 0.0) -> np.ndarray:
+    """In-belt time steps: total integral flux above threshold [p/cm²/s]."""
+    return np.asarray(flux) > threshold
 
-    tau_query    = np.clip(tau_grid, tau_data[0], tau_data[-1])
-    log_R_interp = np.interp(tau_query, tau_data, log_R_data)
-    R_interp     = np.exp(log_R_interp)
 
-    R_interp[tau_grid > tau_data[-1]] = 0.0
-    R_interp[tau_grid < tau_data[0]]  = R[pos][0]
+def lag_weights(
+    flux:   np.ndarray,
+    F_mean: float,
+    select: np.ndarray,
+    n_lags: int,
+) -> np.ndarray:
+    """
+    w_k = mean over the selected steps j of F[j-k] / F_mean, k < n_lags, for a
+    flux that repeats with the period of the array (circular correlation).
 
-    # Truncate trailing negligible tail (speeds up FFT for long-term runs)
-    threshold = R_interp[0] * 1e-12
-    sig = np.where(R_interp > threshold)[0]
-    if len(sig):
-        R_interp[sig[-1] + 1:] = 0.0
-
-    return R_interp
+    The average over the selected steps of the long-term rate is then
+    sum_k w_k K_k.  For n_lags larger than the period the weights repeat.
+    """
+    f   = np.asarray(flux, dtype=float) / F_mean
+    sel = np.asarray(select, dtype=float)
+    N   = len(f)
+    c   = np.fft.irfft(np.fft.rfft(sel) * np.conj(np.fft.rfft(f)), N) / sel.sum()
+    return np.resize(c, n_lags)
 
 
 # ---------------------------------------------------------------------------
@@ -230,23 +279,25 @@ def _prepare_flux_and_norm(
 def compute_history(
     count_rate_file: str | Path,
     spenvis_file:    str | Path,
-    timestep:        float = 60.0,
     in_belt_only:    bool  = False,
-) -> tuple[np.ndarray, np.ndarray]:
+    belt_threshold:  float = 0.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Compute the activation-induced count rate over a single orbital period.
+    Compute the activation-induced count rate over one SPENVIS period,
+    starting from no activation.
 
     Parameters
     ----------
     count_rate_file : count_rate.dat from accumulate_spectra.py
     spenvis_file    : SPENVIS AP9/AE9 output file
-    timestep        : orbital timestep [s] (default 60 s)
     in_belt_only    : if True, use in-belt mean flux for normalisation
+    belt_threshold  : flux above which a step is in the belt [p/cm²/s]
 
     Returns
     -------
-    t_orb : time axis [s], shape (N,), starting at 0
-    C     : count rate [counts/s], shape (N,)
+    t   : time axis [s], shape (N,), starting at 0
+    C   : count rate at the end of each step [counts/s], shape (N,)
+    out : out-of-belt steps, boolean shape (N,)
     """
     tau, R = load_count_rate(count_rate_file)
     print(f"Reference R(tau): {len(tau)} points, R_max={R.max():.4e} counts/s")
@@ -256,11 +307,11 @@ def compute_history(
     )
     N = len(flux_per_step)
 
-    R_grid    = interpolate_R_on_grid(tau, R, dt=dt, n_steps=N)
-    norm_flux = flux_per_step / F_mean
-    C         = np.maximum(fftconvolve(norm_flux, R_grid)[:N], 0.0)
+    K   = step_kernel(tau, R, dt, N)[:, 0]
+    C   = np.maximum(fftconvolve(flux_per_step / F_mean, K)[:N], 0.0)
+    out = ~belt_mask(flux_per_step, belt_threshold)
 
-    return t_orb, C
+    return t_orb, C, out
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +324,8 @@ def compute_long_term_history(
     duration_s:      float,
     avg_window_s:    float  = 7 * 86400.0,
     in_belt_only:    bool   = False,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    belt_threshold:  float  = 0.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute the long-term activation count-rate history by tiling the
     one-period orbital flux.
@@ -288,12 +340,15 @@ def compute_long_term_history(
     duration_s      : total simulation duration [s]
     avg_window_s    : width of the running-average window [s] (default 1 week)
     in_belt_only    : if True, use in-belt mean flux for normalisation
+    belt_threshold  : flux above which a step is in the belt [p/cm²/s]
 
     Returns
     -------
     t_total : time axis [s], shape (M,), starting at 0
-    C       : instantaneous count rate [counts/s], shape (M,)
-    C_avg   : running average of C over avg_window_s, shape (M,)
+    C       : count rate at the end of each step [counts/s], shape (M,)
+    C_avg   : running average of C over the out-of-belt steps within
+              avg_window_s, shape (M,)
+    out     : out-of-belt steps, boolean shape (M,)
     """
     tau, R = load_count_rate(count_rate_file)
     print(f"Reference R(tau): {len(tau)} points, R_max={R.max():.4e} counts/s")
@@ -313,20 +368,22 @@ def compute_long_term_history(
     t_total   = np.arange(M, dtype=float) * dt
     flux_full = np.tile(flux_one_period, n_periods)
 
-    # R_grid: needs to cover at most M steps (or until R ~ 0)
-    R_grid    = interpolate_R_on_grid(tau, R, dt=dt, n_steps=M)
+    # FFT convolution with the step-averaged kernel
+    K = step_kernel(tau, R, dt, M)[:, 0]
+    C = np.maximum(fftconvolve(flux_full / F_mean, K)[:M], 0.0)
 
-    # FFT convolution
-    norm_flux = flux_full / F_mean
-    C         = np.maximum(fftconvolve(norm_flux, R_grid)[:M], 0.0)
+    # Running average over the out-of-belt steps
+    out = ~belt_mask(flux_full, belt_threshold)
+    W   = max(1, int(round(avg_window_s / dt)))
+    num = uniform_filter1d(C * out, size=W, mode="nearest")
+    den = uniform_filter1d(out.astype(float), size=W, mode="nearest")
+    with np.errstate(divide="ignore", invalid="ignore"):
+        C_avg = np.where(den > 0, num / den, np.nan)
 
-    # Running average
-    W       = max(1, int(round(avg_window_s / dt)))
-    C_avg   = uniform_filter1d(C, size=W, mode="nearest")
+    print(f"  Running average window: {W} steps = {W*dt/86400:.2f} days "
+          f"(out-of-belt steps: {out[:N_orb].mean():.1%})")
 
-    print(f"  Running average window: {W} steps = {W*dt/86400:.2f} days")
-
-    return t_total, C, C_avg
+    return t_total, C, C_avg, out
 
 
 # ---------------------------------------------------------------------------
@@ -335,15 +392,14 @@ def compute_long_term_history(
 
 def _saa_intervals(
     t: np.ndarray,
-    flux: np.ndarray,
+    in_belt: np.ndarray,
     dt: float,
 ) -> list[tuple[float, float]]:
     """
-    Return a list of (t_start, t_end) intervals where flux > 0,
+    Return a list of (t_start, t_end) intervals of in-belt steps,
     representing SAA / radiation belt transits.
     Each interval is padded by dt/2 so it covers the full timestep bin.
     """
-    in_belt = flux > 0
     intervals: list[tuple[float, float]] = []
     i = 0
     while i < len(in_belt):
@@ -361,7 +417,7 @@ def _saa_intervals(
 def plot_history(
     t_orb:     np.ndarray,
     C:         np.ndarray,
-    flux:      np.ndarray | None = None,
+    in_belt:   np.ndarray | None = None,
     title:     str = "Activation-induced background rate vs orbital time",
     save_path: str | Path | None = None,
 ) -> None:
@@ -371,16 +427,15 @@ def plot_history(
 
     Parameters
     ----------
-    flux : per-step total integral flux used to identify SAA transits.
-           If None, no shading is added.
+    in_belt : in-belt steps (shaded).  If None, no shading is added.
     """
     dt = float(np.median(np.diff(t_orb))) if len(t_orb) > 1 else 60.0
 
     fig, ax = plt.subplots(figsize=(11, 4))
 
     # SAA transit shading
-    if flux is not None:
-        for k, (t0, t1) in enumerate(_saa_intervals(t_orb, flux, dt)):
+    if in_belt is not None:
+        for k, (t0, t1) in enumerate(_saa_intervals(t_orb, in_belt, dt)):
             ax.axvspan(t0, t1, color="tomato", alpha=0.18, zorder=1,
                        label="SAA transit" if k == 0 else None)
 
@@ -435,7 +490,7 @@ def plot_long_term_history(
 
     # ---- Top panel: raw + average ----------------------------------------
     mask_ds  = C_ds > 0
-    mask_avg = C_avg > 0
+    mask_avg = np.nan_to_num(C_avg) > 0
 
     if mask_ds.any():
         ax1.semilogy(t_ds[mask_ds], C_ds[mask_ds],
@@ -444,7 +499,7 @@ def plot_long_term_history(
     if mask_avg.any():
         ax1.semilogy(t_days[mask_avg], C_avg[mask_avg],
                      color="steelblue", linewidth=1.8,
-                     label=f"running avg ({win_days:.1f} d)")
+                     label=f"out-of-belt running avg ({win_days:.1f} d)")
 
     ax1.set_ylabel("Count rate (counts / s)")
     ax1.grid(True, which="both", linestyle="--", alpha=0.35)
@@ -457,7 +512,7 @@ def plot_long_term_history(
                      color="darkorange", linewidth=1.5)
 
     ax2.set_xlabel("Time (days)")
-    ax2.set_ylabel(f"Avg count rate (counts / s)\n[window: {win_days:.1f} d]")
+    ax2.set_ylabel(f"Out-of-belt avg rate (counts / s)\n[window: {win_days:.1f} d]")
     ax2.grid(True, which="both", linestyle="--", alpha=0.35)
 
     # Secondary x-axis in years
@@ -489,10 +544,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     p.add_argument("count_rate",   help="count_rate.dat from accumulate_spectra.py")
     p.add_argument("spenvis_file", help="SPENVIS AP9/AE9 output file")
-    p.add_argument("--timestep",   type=float, default=60.0, metavar="S",
-                   help="Orbital timestep [s].")
     p.add_argument("--in-belt-only", action="store_true",
                    help="Use in-belt mean flux for normalisation.")
+    p.add_argument("--belt-threshold", type=float, default=0.0, metavar="FLUX",
+                   help="Total flux [p/cm²/s] above which a step is in the belt.")
     p.add_argument("--duration",   default=None, metavar="DUR",
                    help="Total simulation duration for long-term mode. "
                         "Examples: 3y, 18mo, 365d. If omitted, single orbit.")
@@ -514,25 +569,27 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Long-term mode: duration={duration_s/86400:.1f} d, "
               f"avg_window={avg_window_s/86400:.1f} d")
 
-        t_total, C, C_avg = compute_long_term_history(
+        t_total, C, C_avg, out = compute_long_term_history(
             count_rate_file=args.count_rate,
             spenvis_file=args.spenvis_file,
             duration_s=duration_s,
             avg_window_s=avg_window_s,
             in_belt_only=args.in_belt_only,
+            belt_threshold=args.belt_threshold,
         )
 
-        pos = C_avg[C_avg > 0]
-        if len(pos):
-            print(f"\n  Peak avg rate : {pos.max():.4e} counts/s "
-                  f"at t={t_total[C_avg.argmax()]/86400:.1f} d")
-            print(f"  Steady-state  : {pos[-len(pos)//10:].mean():.4e} counts/s "
-                  f"(last 10% of run)")
+        flux_one, _ = _read_total_flux(args.spenvis_file)
+        last = np.arange(len(C)) >= len(C) - len(flux_one)
+        if out.any():
+            print(f"\n  Peak out-of-belt avg rate : {np.nanmax(C_avg):.4e} counts/s "
+                  f"at t={t_total[np.nanargmax(C_avg)]/86400:.1f} d")
+            print(f"  Out-of-belt mean, last period : {C[out & last].mean():.4e} counts/s")
+            print(f"  All-step mean, last period    : {C[last].mean():.4e} counts/s")
 
         if args.save_dat:
             np.savetxt(args.save_dat,
                        np.column_stack([t_total, C, C_avg]),
-                       header="t_s   count_rate_cps   avg_count_rate_cps",
+                       header="t_s   count_rate_cps   out_of_belt_avg_count_rate_cps",
                        fmt="%.6e")
             print(f"  Time history saved to {args.save_dat}")
 
@@ -544,18 +601,17 @@ def main(argv: list[str] | None = None) -> None:
 
     else:
         # ---- Single-orbit mode ---------------------------------------------
-        t_orb, C = compute_history(
+        t_orb, C, out = compute_history(
             count_rate_file=args.count_rate,
             spenvis_file=args.spenvis_file,
-            timestep=args.timestep,
             in_belt_only=args.in_belt_only,
+            belt_threshold=args.belt_threshold,
         )
 
-        pos = C[C > 0]
-        if len(pos):
-            print(f"\n  Peak rate : {pos.max():.4e} counts/s "
-                  f"at t={t_orb[C.argmax()]:.1f} s")
-            print(f"  Mean rate : {pos.mean():.4e} counts/s (active steps only)")
+        print(f"\n  Peak rate        : {C.max():.4e} counts/s at t={t_orb[C.argmax()]:.1f} s")
+        if out.any():
+            print(f"  Out-of-belt mean : {C[out].mean():.4e} counts/s")
+        print(f"  All-step mean    : {C.mean():.4e} counts/s")
 
         if args.save_dat:
             np.savetxt(args.save_dat,
@@ -564,11 +620,8 @@ def main(argv: list[str] | None = None) -> None:
                        fmt="%.6e")
             print(f"  Time history saved to {args.save_dat}")
 
-        flux_overlay = None
-        if not args.no_flux_overlay:
-            flux_overlay, _ = _read_total_flux(args.spenvis_file)
-
-        plot_history(t_orb, C, flux=flux_overlay, save_path=args.save_plot)
+        plot_history(t_orb, C, in_belt=None if args.no_flux_overlay else ~out,
+                     save_path=args.save_plot)
 
 
 if __name__ == "__main__":

@@ -1,50 +1,59 @@
 """
 accumulate_spectra.py
 =====================
-For every time step in the SPENVIS orbit, compute the total background
-spectrum in the detector by accumulating contributions from all isotopes,
-volumes and simulation energies whose activity exceeds a given threshold.
+Background spectrum and count rate at each decay time after one irradiation
+step at the orbit-mean proton spectrum: the reference curve R(tau) that
+activation_history.py convolves with the orbital flux, and that
+average_spectrum.py integrates.
 
-Pipeline
---------
-  activities.pkl      (from compute_activities.py)
-      MultiIndex(energy_MeV, volume, isotope) × time columns
-      Values: normalised activity [Bq/primary]
+Method (Campana et al. 2026, Eqs. 4 and 6)
+------------------------------------------
+The orbit-mean proton fluence of one SPENVIS time step dt is assigned to the
+simulation energies E_j, each standing for the band [e_j, e_{j+1}] around it
+(edges at the geometric midpoints between simulation energies; the outer edges
+are the first and last energy).  The primaries of energy E_j in one step are
 
-  spenvis flux file   (from spenvis_parser.py)
-      Used to derive n_primaries(energy_band, timestep) via
-      band_fluxes_to_primaries()
+    N_j = dt * (F(>e_j) - F(>e_{j+1})) * A_beam            (s_j dE_j of Eq. 4)
 
+where F(>E) is the orbit-mean integral flux and A_beam = pi R^2 sin^2(thetamax)
+is the beam area of the simulation source (from run_info.json, carried in the
+activities.pkl attrs).  The activity and the spectrum are then
+
+    A_{v,i}(tau) = sum_j N_j a_{j,v,i}(tau)                [Bq]
+    S(tau, E)    = sum_{v,i} A_{v,i}(tau) F_{v,i}(E)       [counts/s/keV]
+
+with a the normalised activity [Bq/primary] from compute_activities.py and
+F_{v,i} the detector spectrum per decay [counts/keV/decay].
+
+Inputs
+------
+  activities.pkl      from compute_activities.py
+  SPENVIS file        AP9/AE9 integral flux along the orbit (dt and mean flux)
   result_spectra/{volume}_{isotope}_S-mode.dat
-      Background spectrum [counts/s/keV/decay], one value per energy channel
+                      detector spectrum per decay, one value per channel
 
 Output
 ------
   spectra.pkl / .parquet
-      dict-like: MultiIndex(time_s) × en_s channels  (float32 to save memory)
-      Total background spectrum at each time step [counts/s/keV].
-
+      DataFrame: index time_s, columns = detector channels [keV].  Spectrum
+      [counts/s/keV] at each decay time.  attrs: 'timestep_s', 'duty',
+      'beam_area_cm2', 'nprim_per_step' ({E: N_j}), 'in_belt_only',
+      'activity_threshold'.
   count_rate.dat
       Two-column ASCII: time_s  total_count_rate [counts/s]
 
-  count_rate.pdf / .png
-      Plot of total count rate vs time.
-
 Usage (CLI)
 -----------
-    python accumulate_spectra.py activities.pkl AP9MEAN.txt
-    python accumulate_spectra.py activities.pkl AP9MEAN.txt \\
-        --spectra-dir result_spectra/ \\
-        --threshold 1.0 \\
-        --R 5000 --thetamax 0.8021 --timestep 60 \\
-        --outdir output/ --save-plot count_rate.pdf
+    python accumulate_spectra.py output/activities.pkl AP9MEAN.txt
+    python accumulate_spectra.py output/activities.pkl AP9MEAN.txt \\
+        --spectra-dir result_spectra/ --outdir output/ --save-plot count_rate.pdf
 
 Usage (library)
 ---------------
     from accumulate_spectra import accumulate
 
     spectra_df, count_rate = accumulate(
-        "activities.pkl", "AP9MEAN.txt",
+        "output/activities.pkl", "AP9MEAN.txt",
         spectra_dir="result_spectra/",
     )
 """
@@ -52,7 +61,6 @@ Usage (library)
 from __future__ import annotations
 
 import argparse
-import pickle
 import sys
 import warnings
 from pathlib import Path
@@ -72,14 +80,19 @@ except ImportError:
     pass
 
 try:
-    from compute_activities import load_outputs as load_activities
+    from compute_activities import load_outputs as load_activities, times_of
 except ImportError:
     sys.exit("ERROR: compute_activities.py not found.")
 
 try:
-    from spenvis_parser import parse_spenvis, band_fluxes_to_primaries
+    from spenvis_parser import parse_spenvis
 except ImportError:
     sys.exit("ERROR: spenvis_parser.py not found.")
+
+try:
+    from activation_history import _read_total_flux
+except ImportError:
+    sys.exit("ERROR: activation_history.py not found.")
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +112,7 @@ def make_energy_axis() -> np.ndarray:
 
 EN_S = make_energy_axis()
 N_CHANNELS = len(EN_S)   # 2047
+DELTA_E = 2.0            # keV per channel
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +152,91 @@ def spectrum_path(
 
 
 # ---------------------------------------------------------------------------
+# Primaries per orbital time step
+# ---------------------------------------------------------------------------
+
+def band_edges(energies: list[float] | np.ndarray) -> np.ndarray:
+    """
+    Edges of the bands represented by the simulation energies: geometric
+    midpoints between consecutive energies, and the first and last energy as
+    outer edges.  Band j = [edges[j], edges[j+1]] contains energies[j].
+    """
+    e = np.sort(np.asarray(energies, dtype=float))
+    if len(e) < 2:
+        raise ValueError("At least two simulation energies are needed to define the bands.")
+    return np.concatenate([[e[0]], np.sqrt(e[:-1] * e[1:]), [e[-1]]])
+
+
+def source_beam_area(
+    attrs:    dict,
+    R:        float | None = None,
+    thetamax: float | None = None,
+) -> float:
+    """
+    Beam area pi R^2 sin^2(thetamax) [cm^2] of the simulation source: from R and
+    thetamax if given, otherwise from the source geometry in the attrs of
+    activities.pkl (run_info.json of 0_run.py).
+    """
+    if R is not None or thetamax is not None:
+        if R is None or thetamax is None:
+            raise ValueError("Give both R and thetamax, or neither.")
+        return float(np.pi * R**2 * np.sin(np.radians(thetamax))**2)
+    source = attrs.get("source") or {}
+    if "beam_area_cm2" not in source:
+        raise ValueError("The activities carry no source geometry (run_info.json "
+                         "missing at step 1): give R and thetamax.")
+    return float(source["beam_area_cm2"])
+
+
+def tabulated_energies(spenvis_file: str | Path) -> np.ndarray:
+    """Energy levels [MeV] of a SPENVIS integral flux file (header line)."""
+    with open(spenvis_file, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if not line.startswith("#"):
+                break
+            if "Energy levels" in line:
+                return np.array([float(x) for x in line.split(":", 1)[1].split()])
+    raise ValueError(f"No 'Energy levels' line in {spenvis_file}")
+
+
+def primaries_per_step(
+    spenvis_file:  str | Path,
+    energies:      list[float],
+    beam_area_cm2: float,
+    in_belt_only:  bool = False,
+) -> tuple[dict[float, float], float, float]:
+    """
+    Primaries of each simulation energy in one SPENVIS time step at the mean
+    proton spectrum (see the module docstring).
+
+    Returns
+    -------
+    nprim    : {energy_MeV: primaries per time step}
+    timestep : SPENVIS time step dt [s]
+    duty     : orbit mean of F(t) / F_mean, the factor that turns the response
+               to one step at F_mean into the orbit average: 1, or the in-belt
+               fraction of the time steps if in_belt_only
+    """
+    flux, mjd = _read_total_flux(spenvis_file)
+    timestep = float(np.median(np.diff(mjd)) * 86400.0)
+    duty = float((flux > 0).mean()) if in_belt_only else 1.0
+
+    energies = sorted(float(e) for e in energies)
+    edges = band_edges(energies)
+    e_max = tabulated_energies(spenvis_file)[-1]
+    if edges[-1] > e_max:
+        warnings.warn(f"{Path(spenvis_file).name} tabulates the flux up to {e_max:g} MeV: "
+                      f"band edges above it are clipped, so protons above {e_max:g} MeV are "
+                      f"ignored and the simulation energies above it get no primaries.",
+                      stacklevel=2)
+        edges = np.minimum(edges, e_max)
+    _, band_fluxes = parse_spenvis(spenvis_file, energies=list(edges),
+                                   in_belt_only=in_belt_only)
+    nprim = timestep * np.asarray(band_fluxes) * beam_area_cm2
+    return dict(zip(energies, nprim.tolist())), timestep, duty
+
+
+# ---------------------------------------------------------------------------
 # Core accumulation
 # ---------------------------------------------------------------------------
 
@@ -146,168 +245,127 @@ def accumulate(
     spenvis_file:       str | Path,
     spectra_dir:        str | Path  = "result_spectra",
     energies:           list[float] | None = None,
-    activity_threshold: float       = 1.0,
-    timestep:           float       = 60.0,
-    R:                  float       = 5000.0,
-    thetamax:           float       = 0.8021,
+    activity_threshold: float       = 0.0,
+    R:                  float | None = None,
+    thetamax:           float | None = None,
     in_belt_only:       bool        = False,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """
-    Accumulate background spectra over all energies, volumes, and isotopes.
-
-    The output time grid is taken from the activities DataFrame (the decay
-    time axis computed by compute_activities.py, e.g. [0.1, 1, 10, ..., 1e8] s
-    after the end of irradiation).  The SPENVIS file is used solely to derive
-    the orbit-mean n_primaries per energy band — a single scalar per band that
-    converts normalised activities [Bq/primary] into actual activities [Bq].
-
-    For each decay time t and each (energy_band, volume, isotope):
-      1. actual_activity(t) = normalised_activity(energy_MeV, t) * n_primaries(band)
-      2. if actual_activity(t) > activity_threshold:
-             spectrum(t) += background_spectrum(volume, isotope) * actual_activity(t)
-
-    The energy band index maps to simulation energies as follows: band[i]
-    corresponds to simulation energy = energies[i] (lower edge convention).
-    The last energy in the list (energies[-1]) has no corresponding band and
-    is therefore not used.
+    Background spectrum and count rate at each decay time after one SPENVIS
+    time step of irradiation at the orbit-mean proton spectrum.
 
     Parameters
     ----------
-    activities_pkl     : path to activities.pkl from compute_activities.py
-    spenvis_file       : path to SPENVIS AP9/AE9 output file (used for mean
-                         orbit flux only; does not define the output time axis)
-    spectra_dir        : directory containing {volume}_{isotope}_S-mode.dat files
-    energies           : band edge energies [MeV]; must match the simulation
-                         energies used in activities.pkl.  Default matches
-                         the standard grid [7, 10, 15, ..., 400].
-    activity_threshold : minimum actual activity [Bq] to include a contribution
-    timestep           : duration of one irradiation time step [s]
-    R                  : simulation geometry source sphere radius [cm]
-    thetamax           : cone half-angle [degrees]
-    in_belt_only       : if True, only in-belt time steps used for mean flux
+    activities_pkl     : activities.pkl from compute_activities.py
+    spenvis_file       : SPENVIS AP9/AE9 integral flux file
+    spectra_dir        : directory with the {volume}_{isotope}_S-mode.dat files
+    energies           : simulation energies to use [MeV] (default: all the
+                         energies of activities.pkl)
+    activity_threshold : (volume, isotope) pairs are skipped at the decay times
+                         where their activity after the single step is not
+                         above this value [Bq].  The default 0 keeps everything;
+                         a cut on the single-step activity drops contributions
+                         that add up over many steps in activation_history.py
+                         and average_spectrum.py, so use it only as a speed-up.
+    R, thetamax        : source sphere radius [cm] and cone half-angle [deg];
+                         by default the beam area comes from the activities
+    in_belt_only       : mean flux over the in-belt time steps only (use the
+                         same choice in activation_history.py)
 
     Returns
     -------
-    spectra_df  : pd.DataFrame, index=time_s (decay time after irradiation [s]),
-                  columns=detector energy channels [keV].
-                  Total background spectrum [counts/s/keV] at each decay time.
-    count_rate  : pd.Series, index=time_s.
-                  Total count rate [counts/s] at each decay time (sum × Δε).
+    spectra_df : DataFrame, index time_s, columns detector channels [keV];
+                 spectrum [counts/s/keV].  The attrs record the normalisation
+                 (see the module docstring).
+    count_rate : Series, index time_s; total count rate [counts/s].
     """
-    if energies is None:
-        energies = [7, 10, 15, 20, 30, 40, 50, 60, 70, 100, 150, 200, 300, 400]
-
     activities_pkl = Path(activities_pkl)
-    spenvis_file   = Path(spenvis_file)
     spectra_dir    = Path(spectra_dir)
 
-    # ---- Load normalised activities -----------------------------------
+    # ---- Normalised activities ----------------------------------------
     print(f"Loading activities from: {activities_pkl}")
-    activities_df, _ = load_activities(str(activities_pkl.parent),
+    activities_df, _ = load_activities(activities_pkl.parent,
                                        fmt=activities_pkl.suffix.lstrip("."))
-
+    times_s   = times_of(activities_df)
     time_cols = [c for c in activities_df.columns if c.startswith("t_")]
-    times_s   = np.array([float(c[2:]) for c in time_cols])
-    n_times   = len(times_s)
-    print(f"  {len(activities_df)} (energy, volume, isotope) entries")
-    print(f"  {n_times} time points: {times_s[0]:.2e} – {times_s[-1]:.2e} s")
+    print(f"  {len(activities_df)} (energy, volume, isotope) entries, "
+          f"{len(times_s)} times: {times_s[0]:.2e} – {times_s[-1]:.2e} s")
 
-    # ---- Compute n_primaries per band from SPENVIS --------------------
+    sim_energies = sorted(float(e) for e in
+                          activities_df.index.get_level_values("energy_MeV").unique())
+    if energies is not None:
+        unknown = sorted(set(map(float, energies)) - set(sim_energies))
+        if unknown:
+            raise ValueError(f"Energies {unknown} MeV are not in {activities_pkl.name} "
+                             f"(simulated: {sim_energies}).")
+        sim_energies = sorted(map(float, energies))
+
+    # ---- Primaries per time step ---------------------------------------
+    beam_area = source_beam_area(activities_df.attrs, R, thetamax)
     print(f"Loading SPENVIS flux from: {spenvis_file}")
-    _, band_fluxes = parse_spenvis(
-        spenvis_file, energies=energies, in_belt_only=in_belt_only
-    )
-    n_prim_per_band = band_fluxes_to_primaries(
-        energies, band_fluxes,
-        timestep=timestep, R=R, thetamax=thetamax,
-    )
-    # band[i] corresponds to simulation energy energies[i] (lower edge).
-    # Build mapping: energy_MeV -> n_primaries
-    sim_energies = energies[:-1]      # drop last edge (no band above it)
-    e_to_nprim   = {float(e): n for e, n in zip(sim_energies, n_prim_per_band)}
-    print(f"  {len(e_to_nprim)} energy bands → primaries:")
-    for e, n in e_to_nprim.items():
-        print(f"    {e:>6.1f} MeV: {n:.4e} primaries/timestep")
+    nprim, timestep, duty = primaries_per_step(spenvis_file, sim_energies, beam_area,
+                                               in_belt_only=in_belt_only)
+    edges = band_edges(sim_energies)
+    print(f"  time step {timestep:.1f} s, beam area {beam_area:.4g} cm^2"
+          + (f", in-belt fraction {duty:.3f}" if in_belt_only else ""))
+    for j, e in enumerate(sim_energies):
+        print(f"    {e:>7.1f} MeV  [{edges[j]:7.2f}, {edges[j+1]:7.2f}]: "
+              f"{nprim[e]:.4e} primaries/step")
 
-    # ---- Accumulate ---------------------------------------------------
-    # Output array: shape (n_times, N_CHANNELS)
-    total_spectra = np.zeros((n_times, N_CHANNELS), dtype=np.float64)
+    # ---- Activity of each (volume, isotope) after one step [Bq] --------
+    e_level = activities_df.index.get_level_values("energy_MeV").astype(float)
+    keep    = e_level.isin(sim_energies)
+    weights = np.array([nprim[e] for e in e_level[keep]])
+    act = activities_df.loc[keep, time_cols].to_numpy(dtype=float) * weights[:, None]
+    pair_act = (pd.DataFrame(act, index=activities_df.index[keep])
+                  .groupby(level=["volume", "isotope"]).sum())
+    if activity_threshold > 0:
+        pair_act = pair_act.where(pair_act > activity_threshold, 0.0)
+    pair_act = pair_act[(pair_act > 0).any(axis=1)]
+    print(f"  {len(pair_act)} (volume, isotope) pairs with activity")
 
-    missing_spectra: set[str] = set()
-    missing_energies: set[float] = set()
-    n_contributions = 0
+    # ---- Spectrum: sum over pairs of activity x spectrum per decay ------
+    total = np.zeros((len(times_s), N_CHANNELS))
+    missing: list[str] = []
+    rows: list[np.ndarray] = []
+    specs: list[np.ndarray] = []
 
-    sim_energies_in_df = sorted(
-        activities_df.index.get_level_values("energy_MeV").unique()
-    )
+    def flush() -> None:
+        if rows:
+            np.add(total, np.array(rows).T @ np.array(specs), out=total)
+            rows.clear()
+            specs.clear()
 
-    from tqdm import tqdm
-    entries = list(activities_df.iterrows())
-    bar = tqdm(entries, desc="Accumulating spectra", unit="entry", dynamic_ncols=True)
-
-    for (energy_MeV, volume, isotope), row in bar:
-        bar.set_postfix(E=f"{energy_MeV:g}", iso=isotope, vol=volume, refresh=False)
-
-        # n_primaries for this simulation energy
-        if energy_MeV not in e_to_nprim:
-            if energy_MeV not in missing_energies:
-                missing_energies.add(energy_MeV)
-                bar.write(
-                    f"  [WARN] No primaries mapping for energy {energy_MeV} MeV — skipped."
-                )
-            continue
-
-        n_prim = e_to_nprim[energy_MeV]   # primaries per timestep (scalar)
-
-        # Normalised activity array: shape (n_times,) [Bq/primary]
-        norm_act = row[time_cols].to_numpy(dtype=float)
-
-        # Actual activity at each time: [Bq]
-        actual_act = norm_act * n_prim     # shape (n_times,)
-
-        # Find time steps above threshold
-        above = np.where(actual_act > activity_threshold)[0]
-        if len(above) == 0:
-            continue
-
-        # Load background spectrum
-        spec_path = spectrum_path(spectra_dir, volume, isotope)
-        spec = load_spectrum(spec_path)
+    for (volume, isotope), a in zip(pair_act.index, pair_act.to_numpy()):
+        spec = load_spectrum(spectrum_path(spectra_dir, volume, isotope))
         if spec is None:
-            key = f"{volume}/{isotope}"
-            if key not in missing_spectra:
-                missing_spectra.add(key)
-                bar.write(f"  [WARN] No spectrum file: {spec_path.name}")
+            missing.append(f"{volume}/{isotope}")
             continue
+        rows.append(a)
+        specs.append(spec)
+        if len(rows) == 2000:
+            flush()
+    flush()
 
-        # Accumulate: spectrum [counts/s/keV/decay] * activity [Bq=decays/s]
-        # = [counts/s/keV] contribution
-        # outer product: (n_above,) × (N_CHANNELS,) → (n_above, N_CHANNELS)
-        total_spectra[above] += np.outer(actual_act[above], spec)
-        n_contributions += len(above)
-
-    print(f"\n  {n_contributions} (time, entry) contributions accumulated.")
-    if missing_energies:
-        print(f"  Energies with no band mapping: {sorted(missing_energies)}")
-    if missing_spectra:
-        print(f"  {len(missing_spectra)} spectrum file(s) missing.")
+    print(f"  {len(pair_act) - len(missing)} pairs accumulated.")
+    if missing:
+        print(f"  [WARN] {len(missing)} spectrum file(s) missing in {spectra_dir}, "
+              f"e.g. {', '.join(missing[:5])}")
 
     # ---- Package output -----------------------------------------------
-    col_names = [f"{e:.4f}" for e in EN_S]
-    spectra_df = pd.DataFrame(
-        total_spectra.astype(np.float32),
-        index=pd.Index(times_s, name="time_s"),
-        columns=col_names,
-    )
-
-    # Total count rate: sum(spectrum * dε) where dε = 2 keV (uniform bins)
-    delta_e    = 2.0    # keV per channel
-    count_rate = pd.Series(
-        total_spectra.sum(axis=1) * delta_e,
-        index=pd.Index(times_s, name="time_s"),
-        name="count_rate_cps",
-    )
-
+    index = pd.Index(times_s, name="time_s")
+    spectra_df = pd.DataFrame(total.astype(np.float32), index=index,
+                              columns=[f"{e:.4f}" for e in EN_S])
+    spectra_df.attrs.update({
+        "timestep_s":         timestep,
+        "duty":               duty,
+        "beam_area_cm2":      beam_area,
+        "nprim_per_step":     nprim,
+        "in_belt_only":       in_belt_only,
+        "activity_threshold": activity_threshold,
+    })
+    count_rate = pd.Series(total.sum(axis=1) * DELTA_E, index=index,
+                           name="count_rate_cps")
     return spectra_df, count_rate
 
 
@@ -470,23 +528,23 @@ def plot_spectra(
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(
-        description="Accumulate background spectra from activities and "
-                    "SPENVIS orbital flux.",
+        description="Background spectra and count rate after one orbital time "
+                    "step of irradiation at the orbit-mean proton spectrum.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("activities",   help="activities.pkl from compute_activities.py")
     p.add_argument("spenvis_file", help="SPENVIS AP9/AE9 output text file")
     p.add_argument("--spectra-dir",  default="result_spectra",  metavar="DIR",
                    help="Directory containing background spectrum .dat files.")
-    p.add_argument("--energies", nargs="+", type=float,
-                   default=[7, 10, 15, 20, 30, 40, 50, 60, 70, 100, 150, 200, 300, 400],
-                   metavar="E",
-                   help="Band edge energies [MeV]. Must match simulation energies.")
-    p.add_argument("--threshold", type=float, default=1.0, metavar="BQ",
-                   help="Minimum actual activity [Bq] to include a contribution.")
-    p.add_argument("--timestep",  type=float, default=60.0,  metavar="S")
-    p.add_argument("--R",         type=float, default=5000.0, metavar="CM")
-    p.add_argument("--thetamax",  type=float, default=0.8021, metavar="DEG")
+    p.add_argument("--energies", nargs="+", type=float, default=None, metavar="E",
+                   help="Simulation energies to use [MeV] (default: all in activities).")
+    p.add_argument("--threshold", type=float, default=0.0, metavar="BQ",
+                   help="Skip (volume, isotope) activities after one step not above this [Bq]; "
+                        "a speed-up only, it biases the long-term results.")
+    p.add_argument("--R",         type=float, default=None, metavar="CM",
+                   help="Source sphere radius (default: from the activities).")
+    p.add_argument("--thetamax",  type=float, default=None, metavar="DEG",
+                   help="Source cone half-angle (default: from the activities).")
     p.add_argument("--in-belt-only", action="store_true",
                    help="Use in-belt mean flux (non-zero rows only).")
     p.add_argument("--outdir",    default=".",    metavar="DIR")
@@ -503,7 +561,6 @@ def main(argv: list[str] | None = None) -> None:
         spectra_dir=args.spectra_dir,
         energies=args.energies,
         activity_threshold=args.threshold,
-        timestep=args.timestep,
         R=args.R,
         thetamax=args.thetamax,
         in_belt_only=args.in_belt_only,
@@ -514,11 +571,9 @@ def main(argv: list[str] | None = None) -> None:
     if len(nonzero_cr):
         print(f"  Peak    : {nonzero_cr.max():.4e} counts/s  "
               f"at t={nonzero_cr.idxmax():.2e} s")
-        print(f"  Mean    : {nonzero_cr.mean():.4e} counts/s  "
-              f"(over {len(nonzero_cr)} active time steps)")
-        print(f"  Baseline: {count_rate[count_rate == 0].shape[0]} zero time steps")
+        print(f"  Zero    : {count_rate[count_rate == 0].shape[0]} time points")
     else:
-        print("  No contributions above threshold.")
+        print("  No contributions.")
 
     save_outputs(spectra_df, count_rate, outdir=args.outdir, fmt=args.fmt)
     plot_count_rate(count_rate, save_path=args.save_plot)

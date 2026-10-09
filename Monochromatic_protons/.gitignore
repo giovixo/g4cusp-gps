@@ -1,6 +1,5 @@
 # Large or external data, kept locally
-AP8MIN.txt
-AP9MEAN.txt
+AP[89]*.txt
 RadioactiveDecay6.1.2/
 # Caches and pipeline outputs
 .DS_Store
@@ -10,3 +9,8 @@ __pycache__/
 output/
 DecayChains/
 *.pkl
+*.log
+output_*/
+result_spectra/
+*.dat
+*.pdf

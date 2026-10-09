@@ -45,7 +45,7 @@ This pipeline estimates the activation-induced detector background in a space in
         │        → time history of count rate (single orbit or long-term)
         │
         └──▶ 8. average_spectrum.py
-                 → steady-state orbit-averaged spectrum with line IDs
+                 → steady-state out-of-belt spectrum with line IDs
 ```
 
 ---
@@ -277,8 +277,8 @@ Parses a SPENVIS AP9/AE9 integral proton flux output file and returns:
 **Outputs:** flux values, plots
 
 ```bash
-python spenvis_parser.py AP9MEAN.txt \
-    --R 5000 --thetamax 0.8021 --timestep 60 \
+python spenvis_parser.py AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
+    --R 13 --thetamax 90 --timestep 60 \
     --in-belt-only \
     --save-diff diff_flux.pdf \
     --save-time flux_time.pdf \
@@ -306,29 +306,33 @@ N = timestep × F_band [p/cm²/s] × π × R² × sin²(θ_max)
 ```python
 from spenvis_parser import parse_spenvis, band_fluxes_to_primaries
 
-_, band_fluxes = parse_spenvis("AP9MEAN.txt", energies=[7,10,...,400])
+_, band_fluxes = parse_spenvis("AP8MIN.AP8.output_mean_flux_550km_SSO.txt", energies=[7,10,...,400])
 n_prim = band_fluxes_to_primaries(energies, band_fluxes,
-                                   timestep=60, R=5000, thetamax=0.8021)
+                                   timestep=60, R=13, thetamax=90)
 ```
 
 ---
 
 ### 6. `accumulate_spectra.py`
 
-For each time point in `activities.pkl` and each `(energy, volume, isotope)`entry, computes the actual activity \[Bq\] by multiplying normalised activity by the number of primaries from SPENVIS. If the activity exceeds the threshold, the corresponding background spectrum file is loaded and scaled, then accumulated into the total spectrum at that time.
+Computes the background spectrum and count rate at each decay time after **one SPENVIS time step** (Δt, 60 s) of irradiation at the orbit-mean proton spectrum. This is the reference curve R(τ) used by steps 7 and 8.
+
+- **Primaries per simulation energy** (paper Eq. 4, s_j ΔE_j): each simulation energy E_j stands for the band between the geometric midpoints to its neighbours; the first and last energy are the outer edges. N_j = Δt · (F(>e_j) − F(>e_{j+1})) · A_beam, with F the orbit-mean integral flux from SPENVIS.
+- **Beam area** A_beam = πR² sin²θmax comes from the source geometry recorded by `0_run.py` (`run_info.json` → `activities.pkl` attrs). `--R`/`--thetamax` override it.
+- **Energies** are all those in `activities.pkl`; `--energies` selects a subset.
+- **Δt** is the SPENVIS time step, as in `activation_history.py`.
+- Activities are summed over energies for each (volume, isotope) and multiplied by its spectrum per decay (paper Eq. 6).
+- `--threshold` (default 0) drops (volume, isotope) activities after the single step that are not above it. It is only a speed-up: the dropped contributions add up over many steps in steps 7 and 8.
 
 **Inputs:** `activities.pkl`, SPENVIS file, `result_spectra/*.dat`\
-**Outputs:** `spectra.pkl`, `count_rate.dat`, plots
+**Outputs:** `spectra.pkl` (with the normalisation in its attrs), `count_rate.dat`, plots
 
 ```bash
-python accumulate_spectra.py activities.pkl AP9MEAN.txt \
+python accumulate_spectra.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
     --spectra-dir result_spectra/ \
-    --threshold 1.0 \
-    --R 5000 --thetamax 0.8021 --timestep 60 \
     --outdir output/ \
     --save-plot count_rate.pdf \
     --save-spectra spectra.pdf
-    —threshold 1e-5
 ```
 
 **Spectrum file naming convention:**
@@ -346,7 +350,7 @@ en_s = binning_S[:-1] + np.diff(binning_S / 2.)   # 2047 centres
 
 **Output structure:**
 
-`spectra.pkl` — DataFrame indexed by decay time \[s\], columns = energy channels. Values are total background spectrum \[counts/s/keV\] at each time.
+`spectra.pkl` — DataFrame indexed by decay time \[s\], columns = energy channels. Values are total background spectrum \[counts/s/keV\] at each time. `attrs`: `timestep_s`, `duty` (1, or the in-belt fraction with `--in-belt-only`), `beam_area_cm2`, `nprim_per_step` (`{E: N_j}`), `in_belt_only`, `activity_threshold`.
 
 `count_rate.dat` — two-column ASCII: `time_s count_rate_cps`.
 
@@ -360,26 +364,28 @@ spectra_df.loc[100.0]      # spectrum at t = 100 s after irradiation
 
 ### 7. `activation_history.py`
 
-Computes the time history of the activation-induced count rate over an orbit by convolving the orbital proton flux time series with the reference count-rate decay curve R(τ).
+Computes the time history of the activation-induced count rate by convolving the orbital proton flux time series with the reference curve R(τ) of step 6.
 
-**Physical model:** each 60-second orbital step is treated as an instantaneous irradiation. The causal convolution
+**Physical model:** the SPENVIS flux F is constant during each Δt step. The rate at the end of step j is
 
 ```
-C[j] = Σ_{k=0}^{j}  R((k+1)·Δt) · F[j-k] / F_mean
+C[j] = Σ_{k=0}^{j}  K_k · F[j-k] / F_mean,     K_k = (1/Δt) ∫_{kΔt}^{(k+1)Δt} R(τ) dτ
 ```
 
-is evaluated via FFT. For long-term mode, the orbit is tiled over the requested duration under the assumption of periodic repetition.
+evaluated via FFT. The step-averaged kernel K_k counts the decays within one step of the irradiation. Sampling R at the lags (k+1)Δt instead would lose them: a nuclide with mean life 9 s (Al26m) would get ~0 instead of its equilibrium rate, and one with 10 min about 95%. In long-term mode the SPENVIS flux is tiled over the requested duration, assuming periodic repetition.
+
+**Out of belt:** a step is in the belt when the total flux (first SPENVIS column) is above `--belt-threshold` (default 0). The running average and the summary rates use the out-of-belt steps only; the all-step mean is printed for comparison.
 
 **Inputs:** `count_rate.dat`, SPENVIS file\
-**Outputs:** time-history ASCII, plot
+**Outputs:** time-history ASCII (`t_s`, `count_rate_cps`, `out_of_belt_avg_count_rate_cps`), plot
 
 ```bash
-# Single orbit
-python activation_history.py count_rate.dat AP9MEAN.txt \
+# Single SPENVIS period
+python activation_history.py output/count_rate.dat AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
     --save-plot history.pdf --save-dat history.dat
 
-# Long-term: 3 years, 1-week running average
-python activation_history.py count_rate.dat AP9MEAN.txt \
+# Long-term: 3 years, 1-week out-of-belt running average
+python activation_history.py output/count_rate.dat AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
     --duration 3y --avg-window 1w \
     --save-plot history_3yr.pdf
 ```
@@ -390,13 +396,15 @@ python activation_history.py count_rate.dat AP9MEAN.txt \
 
 ### 8. `average_spectrum.py`
 
-Computes the steady-state orbit-averaged background spectrum after a long mission duration and identifies the isotopes responsible for the most prominent spectral lines.
+Computes the steady-state **out-of-belt** background spectrum after a mission of duration T, and identifies the isotopes responsible for the most prominent spectral lines.
 
-**Physical basis:**
+**Physical basis:** with the same step-averaged kernel as step 7, K_k(E) = (1/Δt) ∫_{kΔt}^{(k+1)Δt} S(τ, E) dτ, the spectrum averaged over the out-of-belt steps j is
 
 ```
-⟨S(E)⟩ = (1/T_orb) × ∫₀^∞ S(τ, E) dτ
+⟨S(E)⟩ = Σ_{k < T/Δt} w_k K_k(E),     w_k = mean_{j out of belt} F[j-k] / F_mean
 ```
+
+The weights w_k are exact (circular correlation of the out-of-belt mask with the flux) for lags within one SPENVIS period, and equal to their period mean for longer lags. `--all-orbit` averages over all steps, which reduces to (⟨F⟩/F_mean/Δt) ∫₀^T S dτ. Nuclides with half-lives much longer than T count with the activity built up to T. Without `--duration`, T is the end of the time grid of step 3 (1e9 s). Δt, the primaries and the flux normalisation come from the attrs of `spectra.pkl`; the SPENVIS file must be the one used in step 6. The total rate agrees with the last-period mean of step 7 to ~0.1%.
 
 Line identification pipeline for each peak:
 
@@ -405,13 +413,14 @@ Line identification pipeline for each peak:
 3. Intersect with isotopes present in the simulation
 4. Pick the largest contributor among the database-confirmed candidates
 
-**Inputs:** `spectra.pkl`, `count_rate.dat`, SPENVIS file\
+**Inputs:** `spectra.pkl`, SPENVIS file\
 **Optional:** `activities.pkl`, `result_spectra/` (for line identification)\
 **Outputs:** average spectrum ASCII, publication-quality plot
 
 ```bash
-python average_spectrum.py spectra.pkl count_rate.dat AP9MEAN.txt \
-    --activities activities.pkl \
+python average_spectrum.py output/spectra.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
+    --duration 3y \
+    --activities output/activities.pkl \
     --spectra-dir result_spectra/ \
     --n-label 6 \
     --window 5 \
@@ -423,6 +432,9 @@ python average_spectrum.py spectra.pkl count_rate.dat AP9MEAN.txt \
 
 | Argument | Default | Description |
 | --- | --- | --- |
+| `--duration` | end of time grid | Mission duration T (`3y`, `18mo`, …) |
+| `--all-orbit` | off | Average over all steps instead of the out-of-belt ones |
+| `--belt-threshold` | `0` p/cm²/s | Total flux above which a step is in the belt |
 | `--activities` | — | For per-isotope line identification |
 | `--spectra-dir` | — | For per-isotope line identification |
 | `--n-label` | `5` | Number of peaks to label |
@@ -435,16 +447,9 @@ python average_spectrum.py spectra.pkl count_rate.dat AP9MEAN.txt \
 
 ## Shared geometry parameters
 
-Several scripts share the same Geant4 simulation geometry parameters:
+The source geometry and the simulation energies are recorded once, by `0_run.py` in `run_info.json`, and travel with the data: `results.pkl` and `activities.pkl` carry them in their attrs, and `spectra.pkl` carries the resulting normalisation (Δt, beam area, primaries per step). `accumulate_spectra.py` and `average_spectrum.py` read them from there; only the stand-alone `spenvis_parser.py` CLI still takes `--R`, `--thetamax`, `--timestep` and `--energies` (its defaults are those of an older 50 m source: pass `--R 13 --thetamax 90` for CUSP).
 
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `--R` | `5000` cm | Radius of the GPS spherical source surface |
-| `--thetamax` | `0.8021` deg | Half-angle of the conical beam |
-| `--timestep` | `60` s | Duration of one irradiation step |
-| `--energies` | `[7,10,...,400]` MeV | Proton energy band edges |
-
-These must be consistent across all scripts in a given analysis run.
+`--in-belt-only` must be the same in `accumulate_spectra.py` and `activation_history.py` (`average_spectrum.py` reads it from `spectra.pkl`).
 
 ---
 
@@ -466,6 +471,8 @@ These must be consistent across all scripts in a given analysis run.
 ## Complete example run
 
 ```bash
+SPENVIS=AP8MIN.AP8.output_mean_flux_550km_SSO.txt
+
 # 0. Run Geant4
 python 0_run.py
 
@@ -481,35 +488,37 @@ python compute_activities.py results.pkl --chains DecayChains/ --outdir output/ 
 # 4. Geant4 post-activation run (scripts not yet in the repository)
 #    -> result_spectra/{vol}_{iso}_S-mode.dat
 
-# 5. Parse SPENVIS orbital flux
-python spenvis_parser.py AP9MEAN.txt --R 5000 --thetamax 0.8021
+# 5. Inspect the SPENVIS orbital flux (optional)
+python spenvis_parser.py $SPENVIS --R 13 --thetamax 90
 
-# 6. Accumulate background spectra
-python accumulate_spectra.py output/activities.pkl AP9MEAN.txt \
+# 6. Spectra and count rate after one step at the mean flux
+python accumulate_spectra.py output/activities.pkl $SPENVIS \
     --spectra-dir result_spectra/ --outdir output/
 
-# 7a. Single-orbit background rate history
-python activation_history.py output/count_rate.dat AP9MEAN.txt \
+# 7a. Rate history over one SPENVIS period
+python activation_history.py output/count_rate.dat $SPENVIS \
     --save-plot history_orbit.pdf
 
-# 7b. Long-term (3-year) background rate history
-python activation_history.py output/count_rate.dat AP9MEAN.txt \
+# 7b. Long-term (3-year) history, out-of-belt running average
+python activation_history.py output/count_rate.dat $SPENVIS \
     --duration 3y --avg-window 1w --save-plot history_3yr.pdf
 
-# 8. Steady-state averaged spectrum with line identification
-python average_spectrum.py output/spectra.pkl output/count_rate.dat AP9MEAN.txt \
+# 8. Steady-state out-of-belt spectrum with line identification
+python average_spectrum.py output/spectra.pkl $SPENVIS --duration 3y \
     --activities output/activities.pkl \
     --spectra-dir result_spectra/ \
     --save-plot avg_spectrum.pdf \
     --save-dat avg_spectrum.dat
 ```
 
+If the SPENVIS file tabulates the flux only up to an energy below the highest simulation energy (AP8: 400 MeV), step 6 clips the bands there and warns: protons above it are ignored.
+
 ---
 
 ## Dependencies
 
 ```
-numpy, scipy, pandas, matplotlib, mpmath, tqdm
+numpy, scipy, pandas, matplotlib, mpmath
 ```
 
 Python ≥ 3.11 (`0_run.py` uses `tomllib`). `average_spectrum.py` queries IAEA LiveChart with `urllib` (requires internet access; results are cached locally after the first run). `myUtilities.prettifyPlot` is used for the plot style when it is importable, and skipped otherwise.
