@@ -5,7 +5,7 @@
 
 // User actions of cusp-postactivation: decay of the activated nuclides in the
 // mass model, one (volume, isotope) pair per run.
-// Work in progress: only a placeholder primary generator is registered.
+// Registers the generator, run, event, stepping and stacking actions.
 
 class PostActActionInitialization : public G4VUserActionInitialization
 {

@@ -32,7 +32,7 @@ This pipeline estimates the activation-induced detector background in a space in
         |                                           |                                │
         |                                           ▼                                │
         |                              4. Geant4 PostActivation run                  │
-        |                                  (scripts not yet in the repository)       │
+        |                                  (run_postactivation.py)                    │
         |                                           |                                │
         ▼                                           ▼                                │
  6. accumulate_spectra.py  ←── result_spectra/{vol}_{iso}_S-mode.dat                 │
@@ -253,13 +253,44 @@ df.groupby(level="isotope").sum()                 # summed over energies and vol
 
 ---
 
-### 4. Geant4 post-activation run
+### 4. `run_postactivation.py`
 
-Execute the post-activation Geant4 run, using the list of active isotopes obtained in the previous step `active_isotopes.pkl`. The scripts for this step are not yet in the repository.
+Runs the Geant4 program `cusp-postactivation`, which decays each active nuclide in each volume and records the energy deposited in the scintillators, for every `(volume, isotope)` pair of `active_isotopes.pkl` (22,787 pairs for the CUSP run).
 
-**Inputs:** `active_isotopes.pkl`
+- **Weights:** the steady-state out-of-belt mean activity A_p \[Bq\] of each pair, computed as in `average_spectrum.py` (primaries per step from the SPENVIS file, step-averaged kernel, lag weights of the out-of-belt steps). Their sum is the total steady-state out-of-belt activity.
+- **Allocation:** N_p ∝ A_p (minimises the variance of the summed background for a fixed total), clipped to \[`--nmin`, `--nmax`\] and scaled (iterating with the clipping) to a total of about `--budget`, rounded to multiples of 100. Pairs with zero weight get `--nmin`. The summary lists the pairs at the limits and the top 20 pairs.
+- **Batches:** pairs in decreasing weight order, at most `--batch-size` pairs and `--batch-decays` decays per Geant4 process (`batch_NNNN.mac`, run with `-t` threads in a work directory that links the GDML files of the mass model, like `0_run.py`). A batch is complete when its `_runs.csv` lists all its pairs with the right number of decays and its macro is unchanged. Complete batches are skipped; an incomplete one is deleted and rerun (not with `--no-rerun`).
 
-**Outputs:** `result_spectra/` directory
+**Inputs:** `activities.pkl` and `active_isotopes.pkl` (same directory), SPENVIS file\
+**Outputs** (in `--outdir`, default `result_postact/`): `allocation.csv` (`Volume, Isotope, Weight_Bq, NDecays, Batch`), `batch_NNNN.{mac,log}`, `batch_NNNN_t<thread>.csv` (`RunID,EventID,ScintID,Edep_keV,t_ns`, one row per scintillator hit, decays with no deposit write nothing), `batch_NNNN_runs.csv` (`RunID,Volume,Isotope,NDecays`), `postact_info.json` (options, git commit, executable, Geant4 data sets, batch timings)
+
+```bash
+python run_postactivation.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt --dry-run   # allocation and macros only
+python run_postactivation.py output/activities.pkl AP8MIN....txt --test 9                                # timing on 9 pairs
+caffeinate -i python run_postactivation.py output/activities.pkl AP8MIN....txt > postact.log 2>&1 &      # production
+```
+
+**Key arguments:**
+
+| Argument | Default | Description |
+| --- | --- | --- |
+| `--outdir` | `result_postact` | Output directory |
+| `--executable` | `../Debug/cusp-postactivation` | Geant4 executable |
+| `--geometry-dir` | `../gdml-mass-model` | GDML files, linked into `<outdir>/work`, where Geant4 runs |
+| `--threads`, `-t` | `0` | Worker threads (0 = all cores) |
+| `--belt-threshold`, `--all-orbit`, `--in-belt-only`, `--duration`, `--energies` | as in steps 6–8 | Definition of the average activity |
+| `--budget` | `1e8` | Total decays |
+| `--nmin`, `--nmax` | `1000`, `100000` | Decays per pair |
+| `--batch-size`, `--batch-decays` | `200`, `1e6` | Limits per Geant4 process |
+| `--test N`, `--test-decays` | — , `1e4` | Time N pairs spanning the weight range (Scatterer, Absorber, other volumes; one process each, start-up subtracted) and extrapolate to the allocation, then stop |
+| `--dry-run` | off | Write `allocation.csv` and the macros only |
+| `--no-rerun`, `--overwrite` | off | Do not rerun incomplete batches; delete the previous results |
+
+```python
+from run_postactivation import load_events
+hits, pairs = load_events("result_postact")   # hits: one row per scintillator hit, with Volume, Isotope, DecayID
+pairs                                         # NDecays per (Volume, Isotope): rate per decay = hits / NDecays
+```
 
 ---
 
@@ -485,8 +516,8 @@ python build_decay_chains.py results.pkl --outdir DecayChains/
 # 3. Solve radioactive decay equations
 python compute_activities.py results.pkl --chains DecayChains/ --outdir output/ --errors
 
-# 4. Geant4 post-activation run (scripts not yet in the repository)
-#    -> result_spectra/{vol}_{iso}_S-mode.dat
+# 4. Geant4 post-activation run (decays per pair from the out-of-belt activity)
+#    -> result_postact/batch_*_t*.csv, batch_*_runs.csv
 
 # 5. Inspect the SPENVIS orbital flux (optional)
 python spenvis_parser.py $SPENVIS --R 13 --thetamax 90

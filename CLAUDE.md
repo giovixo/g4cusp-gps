@@ -17,7 +17,8 @@ activation background spectrum. It follows the method of Campana et al. 2026 (Ex
 
 ## Branches
 
-- **Never touch `main`** (no commits, merges or pushes).
+- **Never touch `main`**: no commits, merges, rebases, pushes or checkouts, and no worktrees or branches
+  based on it. The Agent tool's `isolation: "worktree"` bases worktrees on `main`: do not use it here.
 - `post-activation` = `activation` (merged in `9896885`) + the post-activation program (step 4). Work happens
   here; when step 4 works, `activation` is fast-forwarded to it and the two branches become one.
 
@@ -25,7 +26,13 @@ activation background spectrum. It follows the method of Campana et al. 2026 (Ex
 
 - Two executables from one CMake project (one Xcode project, two schemes):
   `cusp-activation` (steps 0–3: nuclide production) and `cusp-postactivation` (step 4: decay of each
-  nuclide in each volume, detector response; work in progress).
+  nuclide in each volume, detector response).
+- `cusp-postactivation [-t nthreads] [macro]`, commands `/postact/isotope` (step-3 names, e.g. `Ta178[0.000X]`),
+  `/postact/volume`, `/postact/output`, `/postact/minHalfLife` (1 us, = step 2 `min_halflife`),
+  `/postact/timeWindow` (10 us). Ion at rest, uniform in the volume; time 0 = the decay; daughters with
+  T½ ≥ minHalfLife are killed when they stop. Output: `<prefix>_t<N>.csv` (`RunID,EventID,ScintID,Edep_keV,t_ns`,
+  ScintID 0–63 = PV-Scatterer_001–064, 64–95 = PV-Absorber_001–032) and `<prefix>_runs.csv`; files are appended.
+  The RDM very-long-decay threshold is set to 1e60 y in `main` (default 1 y would stop Na22 decays).
 - Sources are split into `src/` + `include/` subdirectories: `common/` (`DetectorConstruction`, `PhysicsList`,
   built as the static library `cusp-common`), `activation/` and `postactivation/` (classes prefixed `PostAct`).
 - `cusp-activation [-t nthreads] [-n] [macro]`: `-t 0` = all cores; `-n` removes `G4NeutronTrackingCut`
@@ -50,7 +57,7 @@ activation background spectrum. It follows the method of Campana et al. 2026 (Ex
 | 1 | `activation_parser.py` | `results.pkl` |
 | 2 | `build_decay_chains.py` | `DecayChains/` |
 | 3 | `compute_activities.py` | `output/activities.pkl`, `active_isotopes.pkl`, … |
-| 4 | Geant4 post-activation run (another code, not in this repo) | `result_spectra/` |
+| 4 | `run_postactivation.py` + `cusp-postactivation` | `result_postact/` (hit lists per decay) |
 | 5 | `spenvis_parser.py` | orbit flux plots (optional) |
 | 6 | `accumulate_spectra.py` | `spectra.pkl`, `count_rate.dat` |
 | 7 | `activation_history.py` | rate history, out-of-belt running average |

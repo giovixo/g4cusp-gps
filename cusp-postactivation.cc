@@ -12,8 +12,11 @@
 #include "G4UIterminal.hh"
 #include "G4UItcsh.hh"
 
-#include "DetectorConstruction.hh"
+#include "PostActDetectorConstruction.hh"
+#include "G4HadronicParameters.hh"
+#include "G4SystemOfUnits.hh"
 #include "PostActActionInitialization.hh"
+#include "PostActConfig.hh"
 
 #include "PhysicsList.hh"
 #include "G4PhysListFactory.hh"
@@ -102,8 +105,13 @@ int main(int argc, char **argv)
 #endif
 
     
+    // Radioactive decay: by default Geant4 ignores decays later than 1 year after the start
+    // of the event. The threshold is read when the process is constructed (at
+    // runManager->Initialize()), so it must be set before.
+    G4HadronicParameters::Instance()->SetTimeThresholdForRadioactiveDecay(1.e60*year);
+
     // Set mandatory initialization classes
-    runManager->SetUserInitialization(new DetectorConstruction());
+    runManager->SetUserInitialization(new PostActDetectorConstruction());
     runManager->SetUserInitialization(new PhysicsList(false));   
 
     // // User action initialization
@@ -119,6 +127,9 @@ int main(int argc, char **argv)
     
     // Get the pointer to the User Interface manager
     auto uiManager = G4UImanager::GetUIpointer();
+
+    // User commands (/postact/...)
+    auto configMessenger = PostActConfig::CreateMessenger();
 
     if (!ui) // Batch mode
     {
@@ -142,6 +153,7 @@ int main(int argc, char **argv)
 
     
     // Job termination
+    delete configMessenger;
     delete visManager;
     delete runManager;
     return 0;

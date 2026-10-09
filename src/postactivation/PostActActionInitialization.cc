@@ -1,5 +1,9 @@
 #include "PostActActionInitialization.hh"
 #include "PostActPrimaryGeneratorAction.hh"
+#include "PostActRunAction.hh"
+#include "PostActEventAction.hh"
+#include "PostActSteppingAction.hh"
+#include "PostActStackingAction.hh"
 
 
 PostActActionInitialization::PostActActionInitialization()
@@ -13,11 +17,17 @@ PostActActionInitialization::~PostActActionInitialization()
 
 void PostActActionInitialization::BuildForMaster() const
 {
+    SetUserAction(new PostActRunAction);
 }
 
 void PostActActionInitialization::Build() const
 {
     SetUserAction(new PostActPrimaryGeneratorAction);
 
-    // TODO: stepping action (kill daughters with T1/2 >= 1 us), sensitive detectors and output
+    auto runAction = new PostActRunAction;
+    SetUserAction(runAction);
+    auto eventAction = new PostActEventAction(runAction);
+    SetUserAction(eventAction);
+    SetUserAction(new PostActSteppingAction(eventAction));
+    SetUserAction(new PostActStackingAction);
 }
