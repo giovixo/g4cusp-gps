@@ -45,6 +45,8 @@ background spectrum. It follows the method of Campana et al. 2026 (Exp. Astron. 
 | 7 | `activation_history.py` | rate history, out-of-belt running average |
 | 8 | `average_spectrum.py` | steady-state out-of-belt spectrum |
 
+- A production set (17 energies × 1e8 protons, all cores) takes about 4 h; run it in the background
+  under `caffeinate -i`. `0_run.py` skips energies already done with the same nprim unless `--overwrite` is given.
 - The user is mostly interested in **out-of-belt** results: averages in steps 7–8 use out-of-belt steps
   by default (`--belt-threshold`, `--all-orbit`).
 - SPENVIS files (`AP[89]*.txt`) are git-ignored. The current one,
@@ -55,7 +57,6 @@ background spectrum. It follows the method of Campana et al. 2026 (Exp. Astron. 
 - The chain builder deliberately reproduces Geant4's decay-data behaviour, data errors included
   (see `geant4_rdm_report/bug_report.md`).
 - `myUtilities` (plot style) is on the user's own PYTHONPATH, not in the repo; its import is optional.
-- `__to_delete/` holds superseded files awaiting deletion: don't use or update them.
 
 ## Conventions
 
@@ -64,4 +65,7 @@ background spectrum. It follows the method of Campana et al. 2026 (Exp. Astron. 
 - Keep, unless asked otherwise: `SteppingAction` (no stacking action), the empty `UserRun` and
   `UserEventAction`, the unused materials in `DetectorConstruction`, the fixed random seed.
 - Simulation outputs, pickles, logs, plots and `.dat` files stay out of git (see the `.gitignore` files).
-- `HANDOFF.md` (git-ignored) holds the current session state and next steps.
+- `HANDOFF.md` (git-ignored, local only) holds the current session state and next steps; it is loaded
+  below when present.
+
+@HANDOFF.md
