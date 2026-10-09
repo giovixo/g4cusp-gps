@@ -14,7 +14,7 @@ The code works in single or in multi-thread mode. The number of worker threads i
 (default 1; `0` means all available cores):
 
 ```sh
-./cusp-activation -t 4 macros/batch.mac
+./cusp-activation -t 4 macrotest.mac
 ```
 
 If set, the `G4FORCENUMBEROFTHREADS` environment variable overrides `-t`.

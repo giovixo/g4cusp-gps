@@ -12,13 +12,13 @@ Interactive mode:
 `./cusp-activation`
 
 Batch mode:
-`./cusp-activation batch.mac`
+`./cusp-activation macrotest.mac`
 
 Batch mode with 4 worker threads:
-`./cusp-activation -t 4 batch.mac`
+`./cusp-activation -t 4 macrotest.mac`
 
 Batch mode with neutron activation (no neutron tracking cut):
-`./cusp-activation -n batch.mac`
+`./cusp-activation -n macrotest.mac`
 
 ## License
 ```txt

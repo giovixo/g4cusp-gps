@@ -32,8 +32,7 @@ This pipeline estimates the activation-induced detector background in a space in
         |                                           |                                │
         |                                           ▼                                │
         |                              4. Geant4 PostActivation run                  │
-        |                                  run_isotopes_in_volumes.py                │
-        |                                  run_extract.spectra.py                    │
+        |                                  (scripts not yet in the repository)       │
         |                                           |                                │
         ▼                                           ▼                                │
  6. accumulate_spectra.py  ←── result_spectra/{vol}_{iso}_S-mode.dat                 │
@@ -208,8 +207,6 @@ Solves the Bateman equations of a linear chain (paper Eq. A7) for N₀(0) = 1. `
 - **Equal decay constants** (different nuclides with the same tabulated half-life) are separated by a relative 10⁻¹².
 - **Accuracy:** better than 10⁻¹² against the exact formula evaluated with 1500 digits (random chains of 2–8 members, half-lives from 0.1 s to 10²⁰ s) and against a stiff ODE solver (Radau) on the longest chains of a CUSP run.
 
-`radiationSolver.py` (sympy eigen-decomposition and a scipy ODE integrator) is no longer used by the pipeline.
-
 ---
 
 ### 3. `compute_activities.py`
@@ -258,11 +255,11 @@ df.groupby(level="isotope").sum()                 # summed over energies and vol
 
 ### 4. Geant4 post-activation run
 
-Execute the post-activation Geant4 run, using the list of active isotopes obtained in the previous step `active_isotopes.pkl`. Exploits the `run_.py` and `extract_spectra.py` scripts.
+Execute the post-activation Geant4 run, using the list of active isotopes obtained in the previous step `active_isotopes.pkl`. The scripts for this step are not yet in the repository.
 
 **Inputs:** `active_isotopes.pkl`
 
-**Outputs:** `results_spectra/` directory
+**Outputs:** `result_spectra/` directory
 
 ---
 
@@ -361,7 +358,7 @@ spectra_df.loc[100.0]      # spectrum at t = 100 s after irradiation
 
 ---
 
-### 8. `activation_history.py`
+### 7. `activation_history.py`
 
 Computes the time history of the activation-induced count rate over an orbit by convolving the orbital proton flux time series with the reference count-rate decay curve R(τ).
 
@@ -391,7 +388,7 @@ python activation_history.py count_rate.dat AP9MEAN.txt \
 
 ---
 
-### 9. `average_spectrum.py`
+### 8. `average_spectrum.py`
 
 Computes the steady-state orbit-averaged background spectrum after a long mission duration and identifies the isotopes responsible for the most prominent spectral lines.
 
@@ -481,22 +478,25 @@ python build_decay_chains.py results.pkl --outdir DecayChains/
 # 3. Solve radioactive decay equations
 python compute_activities.py results.pkl --chains DecayChains/ --outdir output/ --errors
 
-# 4. Parse SPENVIS orbital flux
+# 4. Geant4 post-activation run (scripts not yet in the repository)
+#    -> result_spectra/{vol}_{iso}_S-mode.dat
+
+# 5. Parse SPENVIS orbital flux
 python spenvis_parser.py AP9MEAN.txt --R 5000 --thetamax 0.8021
 
-# 5. Accumulate background spectra
+# 6. Accumulate background spectra
 python accumulate_spectra.py output/activities.pkl AP9MEAN.txt \
     --spectra-dir result_spectra/ --outdir output/
 
-# 6a. Single-orbit background rate history
+# 7a. Single-orbit background rate history
 python activation_history.py output/count_rate.dat AP9MEAN.txt \
     --save-plot history_orbit.pdf
 
-# 6b. Long-term (3-year) background rate history
+# 7b. Long-term (3-year) background rate history
 python activation_history.py output/count_rate.dat AP9MEAN.txt \
     --duration 3y --avg-window 1w --save-plot history_3yr.pdf
 
-# 7. Steady-state averaged spectrum with line identification
+# 8. Steady-state averaged spectrum with line identification
 python average_spectrum.py output/spectra.pkl output/count_rate.dat AP9MEAN.txt \
     --activities output/activities.pkl \
     --spectra-dir result_spectra/ \
@@ -509,7 +509,7 @@ python average_spectrum.py output/spectra.pkl output/count_rate.dat AP9MEAN.txt 
 ## Dependencies
 
 ```
-numpy, scipy, pandas, matplotlib, tqdm, requests
+numpy, scipy, pandas, matplotlib, mpmath, tqdm
 ```
 
-All standard scientific Python stack. `requests` is used by `average_spectrum.py` for the IAEA LiveChart query (requires internet access; results are cached locally after the first run).
+Python ≥ 3.11 (`0_run.py` uses `tomllib`). `average_spectrum.py` queries IAEA LiveChart with `urllib` (requires internet access; results are cached locally after the first run). `myUtilities.prettifyPlot` is used for the plot style when it is importable, and skipped otherwise.

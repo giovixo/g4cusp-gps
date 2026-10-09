@@ -65,8 +65,11 @@ import matplotlib.pyplot as plt
 # Local imports
 # ---------------------------------------------------------------------------
 
-from myUtilities import prettifyPlot
-prettifyPlot()
+try:
+    from myUtilities import prettifyPlot   # optional personal plot style
+    prettifyPlot()
+except ImportError:
+    pass
 
 try:
     from compute_activities import load_outputs as load_activities

@@ -58,8 +58,11 @@ import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
-from myUtilities import prettifyPlot
-prettifyPlot()
+try:
+    from myUtilities import prettifyPlot   # optional personal plot style
+    prettifyPlot()
+except ImportError:
+    pass
 
 from nuclides import canonical_name
 
