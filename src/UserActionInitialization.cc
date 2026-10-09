@@ -2,6 +2,7 @@
 #include "PrimaryGeneratorAction.hh"
 #include "UserRunAction.hh"
 #include "UserEventAction.hh"
+#include "SteppingAction.hh"
 
 
 UserActionInitialization::UserActionInitialization()
@@ -23,4 +24,5 @@ void UserActionInitialization::Build() const
     SetUserAction(new PrimaryGeneratorAction);
     SetUserAction(new UserRunAction);
     SetUserAction(new UserEventAction);
+    SetUserAction(new SteppingAction);
 }

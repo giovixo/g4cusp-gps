@@ -1,0 +1,29 @@
+# Configuration for 0_run.py: CUSP mass model.
+# Every key is optional (the built-in defaults are the CUSP values) and can be
+# overridden on the command line. Relative paths are relative to this file.
+
+# --- Geant4 application -------------------------------------------------------
+executable   = "../Debug/cusp-activation"
+geometry_dir = "../gdml-mass-model"     # all files here are linked into each work dir
+threads      = 0                        # -t option; 0 = all cores
+g4_args      = []                       # e.g. ["-n"] for neutron activation
+pre_commands = ["/cusp/stepping/verbose 0"]
+ntuple       = "Events"
+# regex for the per-thread files; must define the groups run, ntuple and thread
+thread_file_regex = '_run(?P<run>\d+)_nt_(?P<ntuple>\w+?)_t(?P<thread>\d+)\.csv$'
+
+# --- Primary source -----------------------------------------------------------
+# Sphere surface, inward cosine law. The mass model must lie inside the sphere of
+# radius radius_cm*sin(thetamax_deg) around centre_cm, and the source sphere must
+# lie inside the Geant4 world (CUSP world: 50 cm box centred at the origin;
+# payload bounding box x -49..47, y -70..40, z -46..142 mm).
+particle     = "proton"
+energies     = [5, 6, 8, 10, 15, 20, 30, 40, 50, 60, 70, 100, 150, 200, 300, 400, 700]   # MeV
+nprim        = 100_000_000
+radius_cm    = 13.0
+centre_cm    = [0.0, -1.5, 4.8]
+thetamax_deg = 90.0
+
+# --- Output -------------------------------------------------------------------
+outdir    = "output"
+keep_work = true

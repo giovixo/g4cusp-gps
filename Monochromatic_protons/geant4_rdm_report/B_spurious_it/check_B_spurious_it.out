@@ -1,0 +1,22 @@
+RadioactiveDecay: /Users/riccardo/geant4-v11.4.1/share/Geant4/data/RadioactiveDecay6.1.2
+ENSDFSTATE:       /Users/riccardo/geant4-v11.4.1/share/Geant4/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+
+1. Ground states (no floating flag) with an IT branch onto themselves
+   Br92     IT 0.5      (other modes: BetaMinus 0.5)
+   Y92      IT 0.5      (other modes: BetaMinus 0.5)
+   Tc102    IT 0.019608 (other modes: BetaMinus 0.98039)
+   Sb128    IT 0.034749 (other modes: BetaMinus 0.96525)
+   Eu140    IT 0.5      (other modes: MshellEC 0.00088604, BetaPlus 0.47431, KshellEC 0.021716, LshellEC 0.0030878)
+   Tb154    IT 0.17898  (other modes: BetaMinus 8.2102e-28, MshellEC 0.030006, BetaPlus 0.022317, KshellEC 0.66569, LshellEC 0.10301)
+   Ir186    IT 0.2      (other modes: MshellEC 0.033475, BetaPlus 0.044635, KshellEC 0.61542, LshellEC 0.10647)
+   Au190    IT 0.5      (other modes: Alpha 5e-09, MshellEC 0.020975, BetaPlus 0.041599, KshellEC 0.37171, LshellEC 0.065714)
+   Np240    IT 0.0011986 (other modes: BetaMinus 0.9988)
+   No253    IT 0.44444  (other modes: Alpha 0.35556, BetaPlus 0.2)
+
+2. ENSDFSTATE levels (T1/2 >= 1 s) without floating flag that LoadDecayTable matches to a floating level
+   Rh92           T1/2 = 4.66 s    -> library level Rh92[0X] (T1/2 = 0.53 s): MshellEC 0.00020258, BetaPlus 0.99186, KshellEC 0.00708, LshellEC 0.00086236
+   La128          T1/2 = 5.18 min  -> library level La128[0X] (T1/2 = 1.4 min): MshellEC 0.0041185, BetaPlus 0.87074, KshellEC 0.1103, LshellEC 0.014836
+   Ho156[52.37]   T1/2 = 9.5 s     -> library level Ho156[52.37X] (T1/2 = 7.6 min): BetaPlus 0.07171, IT 0.92829
+   Tm164          T1/2 = 1.95 min  -> library level Tm164[0X] (T1/2 = 5.1 min): MshellEC 0.0073409, BetaPlus 0.010129, KshellEC 0.15787, LshellEC 0.024659, IT 0.8
+   Ta160          T1/2 = 1.55 s    -> library level Ta160[0X] (T1/2 = 1.7 s): Alpha 0.60241, BetaPlus 0.39759
+   Md258          T1/2 = 51.5 d    -> library level Md258[0X] (T1/2 = 57 min): Alpha 0.76923, BetaMinus 0.23077, BetaPlus 7.6923e-28, SpFission 7.6923e-28

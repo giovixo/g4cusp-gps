@@ -1,0 +1,54 @@
+# Run with the unmodified example
+#   examples/extended/radioactivedecay/rdecay01
+# and read the "Nb of generated particles" table of each run.
+/control/verbose 2
+/run/verbose 0
+/process/had/rdm/thresholdForVeryLongDecayTime 1.0e+60 year
+/run/initialize
+/gun/particle ion
+/rdecay01/fullChain false
+/run/printProgress 0
+#
+# Controls (correct data): every decay emits e- + anti_nu_e / nu_e
+/gun/ion 39 90
+/run/beamOn 20000
+/gun/ion 43 99
+/run/beamOn 20000
+/gun/ion 27 57
+/run/beamOn 20000
+#
+# 1. Q <= 0 in the data: no beta particle emitted
+/gun/ion 42 99
+/run/beamOn 20000
+/gun/ion 44 103
+/run/beamOn 20000
+/gun/ion 53 132
+/run/beamOn 20000
+/gun/ion 39 88
+/run/beamOn 20000
+#
+# 2. Spurious IT branch of a ground state: decays without any product
+/gun/ion 39 92
+/run/beamOn 20000
+/gun/ion 65 154
+/run/beamOn 20000
+#
+# 3. Ground state matched to a floating level of the library
+/gun/ion 69 164
+/run/beamOn 20000
+#
+# 4. Level without decay data: no emission at all
+/gun/ion 73 178 0 0 X
+/run/beamOn 20000
+/gun/ion 96 252
+/run/beamOn 20000
+#
+# 5. Wrong decay-mode totals
+/gun/ion 94 233
+/run/beamOn 20000
+/gun/ion 93 231
+/run/beamOn 20000
+/gun/ion 81 183
+/run/beamOn 20000
+/gun/ion 65 157
+/run/beamOn 20000

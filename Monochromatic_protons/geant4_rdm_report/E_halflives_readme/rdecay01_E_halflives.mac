@@ -1,0 +1,25 @@
+# Report E: the 'P'-line half-lives are not used; compare the mean life printed for each primary with ENSDFSTATE
+# Run with the unmodified example
+#   examples/extended/radioactivedecay/rdecay01
+# and read the "Nb of generated particles" table of each run.
+/control/verbose 2
+/run/verbose 0
+/process/had/rdm/thresholdForVeryLongDecayTime 1.0e+60 year
+/run/initialize
+/gun/particle ion
+/rdecay01/fullChain false
+/run/printProgress 0
+#
+# Sc44 and Sc44[271.241] (half-lives exchanged on the P lines)
+/gun/ion 21 44
+/run/beamOn 100
+/gun/ion 21 44 0 271.241
+/run/beamOn 100
+# Eu152 and Eu152[45.5998] (half-lives exchanged on the P lines)
+/gun/ion 63 152
+/run/beamOn 100
+/gun/ion 63 152 0 45.5998
+/run/beamOn 100
+# Se79 (P line 235 s, ENSDFSTATE 3.27e5 y)
+/gun/ion 34 79
+/run/beamOn 100

@@ -1,0 +1,26 @@
+RadioactiveDecay: /Users/riccardo/geant4-v11.4.1/share/Geant4/data/RadioactiveDecay6.1.2
+ENSDFSTATE:       /Users/riccardo/geant4-v11.4.1/share/Geant4/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+
+Candidate wrong decay-mode totals (summary > 0.5 with detail lines < 50 %, or summary ~0 with detail lines >= 1 %)
+   Rh98[56.3]       T1/2 = 3.6 min    summary: MshellEC 0.00588, BetaPlus 0.766, KshellEC 0.203, LshellEC 0.025; detail sums: MshellEC 0.0647%, BetaPlus 8.43%, KshellEC 2.23%, LshellEC 0.275%
+   Tb157            T1/2 = 71 y       summary: MshellEC 1; detail sums: MshellEC 0.11%
+   Ho152            T1/2 = 2.697 min  summary: Alpha 0.186, MshellEC 0.00631, BetaPlus 0.642, KshellEC 0.144, LshellEC 0.0215; detail sums: Alpha 12%, MshellEC 0.407%, BetaPlus 41.4%, KshellEC 9.27%, LshellEC 1.39%
+   Tm155[41]        T1/2 = 45 s       summary: Alpha 1; detail sums: Alpha 2%, BetaPlus 1e-25%
+   Os181[49.2]      T1/2 = 2.7 min    summary: BetaPlus 0.752, IT 0.248; detail sums: BetaPlus 9.09%
+   Tl181            T1/2 = 3.2 s      summary: Alpha 1; detail sums: Alpha 8.6%, BetaPlus 1e-25%
+   Tl183            T1/2 = 6.9 s      summary: Alpha 1; detail sums: Alpha 50%, BetaPlus 50%
+   Pb185            T1/2 = 6.3 s      summary: Alpha 1; detail sums: Alpha 34%, BetaPlus 1e-25%
+   Bi212[239]       T1/2 = 25 min     summary: BetaMinus 1; detail sums: BetaMinus 33%
+   Bi212[1478]      T1/2 = 7 min      summary: BetaMinus 1; detail sums: BetaMinus 25%
+   Np231            T1/2 = 48.8 min   summary: Alpha 0.948, BetaPlus 0.0516; detail sums: Alpha 2%, BetaPlus 0.109%
+   Pu233            T1/2 = 20.9 min   summary: Alpha 1; detail sums: Alpha 0.12%
+   Am232            T1/2 = 1.317 min  summary: Alpha 1; detail sums: Alpha 3%, BetaPlus 1e-25%
+   Am233            T1/2 = 3.2 min    summary: Alpha 1; detail sums: Alpha 3%, BetaPlus 1e-25%
+   Cm234            T1/2 = 51 s       summary: Alpha 1; detail sums: Alpha 40%, BetaPlus 1e-25%, SpFission 1e-25%
+   Bk234            T1/2 = 2.333 min  summary: BetaPlus 1; detail sums: Alpha 1e-25%, BetaPlus 20%
+   Md248            T1/2 = 7 s        summary: Alpha 0.323, BetaPlus 0.677; detail sums: Alpha 20%, BetaPlus 42%
+   No255            T1/2 = 3.52 min   summary: Alpha 0.437, BetaPlus 0.563; detail sums: Alpha 30%, BetaPlus 38.6%
+   Lr262            T1/2 = 4 h        summary: SpFission 1; detail sums: Alpha 1e-25%, BetaPlus 1e-25%, SpFission 10%
+   Db262            T1/2 = 35 s       summary: Alpha 1; detail sums: Alpha 48%, SpFission 1e-25%
+   Sg265[152X]      T1/2 = 8.5 s      summary: Alpha 1; detail sums: Alpha 49%
+   total: 21

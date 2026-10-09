@@ -1,0 +1,16 @@
+# Large or external data, kept locally
+AP[89]*.txt
+RadioactiveDecay6.1.2/
+# Caches and pipeline outputs
+.DS_Store
+.ipynb_checkpoints/
+__pycache__/
+.gamma_line_cache.pkl
+output/
+DecayChains/
+*.pkl
+*.log
+output_*/
+result_spectra/
+*.dat
+*.pdf

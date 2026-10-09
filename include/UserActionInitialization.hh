@@ -3,12 +3,10 @@
 
 #include "G4VUserActionInitialization.hh"
 
-class DetectorConstruction;
-
 class UserActionInitialization : public G4VUserActionInitialization
 {
 public:
-    UserActionInitialization();	            // Constructor
+    UserActionInitialization();                // Constructor
     virtual ~UserActionInitialization();    // Destructor
     
     virtual void Build() const;

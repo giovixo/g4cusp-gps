@@ -1,1 +1,6 @@
 Tools
+
+merge_scorefiles.py
+    Merges the per-thread CSV files of each run (scorefile_run<N>_nt_Events_t<thread>.csv)
+    into one file per run (scorefile_run<N>.csv), sorted by EventID.
+    Usage: python3 tools/merge_scorefiles.py [directory] [-o OUTDIR] [--run N] [--delete]

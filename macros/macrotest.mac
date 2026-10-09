@@ -1,0 +1,15 @@
+# Isotropic proton irradiation of the CUSP payload.
+# The source sphere must lie inside the world volume (50 cm box centred at the
+# origin) and enclose the payload (bounding box x -49..47, y -70..40,
+# z -46..142 mm): primaries starting outside the world are not tracked through
+# the geometry. Normalisation: N = dt * F_omni * pi * R^2 (thetamax = 90 deg).
+/gps/pos/type Surface
+/gps/pos/shape Sphere
+/gps/pos/centre 0. -1.5 4.8 cm
+/gps/pos/radius 13 cm
+/gps/ang/type cos
+/gps/ang/mintheta 0 deg
+/gps/ang/maxtheta 90 deg
+/gps/particle proton
+/gps/energy 1000 MeV
+/run/beamOn 100000

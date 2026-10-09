@@ -9,10 +9,16 @@ __A GEANT4 code to simulate the CUSP detector__
 ## Usage
 
 Interactive mode:
-`./cusp`
+`./cusp-activation`
 
 Batch mode:
-`./cusp batch.mac`
+`./cusp-activation macrotest.mac`
+
+Batch mode with 4 worker threads:
+`./cusp-activation -t 4 macrotest.mac`
+
+Batch mode with neutron activation (no neutron tracking cut):
+`./cusp-activation -n macrotest.mac`
 
 ## License
 ```txt
