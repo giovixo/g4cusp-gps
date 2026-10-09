@@ -69,7 +69,7 @@ Counts of particles generated in 20,000 single decays:
 
 In every case the nucleus decays with the correct ENSDFSTATE mean life; in the
 IT fraction of the decays nothing is produced. (Y92 also emits no electron in
-its beta- decays, because of the Q <= 0 problem of report A.)
+its beta- decays, because of the Q <= 0 problem reported in bug 2780.)
 
 1. Ground states with an IT branch onto themselves
 --------------------------------------------------
@@ -144,7 +144,7 @@ Related reports
 ---------------
 
 Five reports on RadioactiveDecay6.1.2, submitted separately:
-- A. Q <= 0 in the detail lines: no beta particle emitted
+- A. Q <= 0 in the detail lines: no beta particle emitted (bug 2780)
 - B. Ground states with a spurious IT branch, or matched to a floating level:
   wrong decay modes, some decays emit nothing (this report)
 - C. Unstable levels without decay data are killed without emitting anything,

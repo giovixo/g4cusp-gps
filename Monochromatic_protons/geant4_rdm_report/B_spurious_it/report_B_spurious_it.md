@@ -44,7 +44,7 @@ Counts of particles generated in 20,000 single decays:
 | Tb154 | 1 | 0 | 489 | 0 | **16478** | 20000 νₑ |
 | Tm164 (ground state) | 2 | 0 | 201 | 0 | **3935** | 20000 νₑ |
 
-In every case the nucleus decays with the correct ENSDFSTATE mean life; in the IT fraction of the decays nothing is produced. (Y92 also emits no electron in its β⁻ decays, because of the Q ≤ 0 problem of report A.)
+In every case the nucleus decays with the correct ENSDFSTATE mean life; in the IT fraction of the decays nothing is produced. (Y92 also emits no electron in its β⁻ decays, because of the Q ≤ 0 problem reported in bug 2780.)
 
 ## 1. Ground states with an IT branch onto themselves
 
@@ -110,7 +110,7 @@ The other five levels get the decay modes of a different level too. Ho156[52.37]
 ## Related reports
 
 Five reports on RadioactiveDecay6.1.2, submitted separately:
-- A. Q ≤ 0 in the detail lines: no β particle emitted
+- A. Q ≤ 0 in the detail lines: no β particle emitted (bug 2780)
 - B. Ground states with a spurious IT branch, or matched to a floating level: wrong decay modes, some decays emit nothing (this report)
 - C. Unstable levels without decay data are killed without emitting anything, and without a warning
 - D. Wrong decay-mode totals in some levels

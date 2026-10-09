@@ -83,7 +83,7 @@ Ta178[0X] is produced, for example, in proton-induced spallation of tungsten. In
 ## Related reports
 
 Five reports on RadioactiveDecay6.1.2, submitted separately:
-- A. Q ≤ 0 in the detail lines: no β particle emitted
+- A. Q ≤ 0 in the detail lines: no β particle emitted (bug 2780)
 - B. Ground states with a spurious IT branch, or matched to a floating level: wrong decay modes, some decays emit nothing
 - C. Unstable levels without decay data are killed without emitting anything, and without a warning (this report)
 - D. Wrong decay-mode totals in some levels

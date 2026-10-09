@@ -43,7 +43,7 @@ The macro decays 20,000 nuclei of each nuclide at rest, with `/rdecay01/fullChai
 | Tl183 | α 20000 (100%) | mostly EC/β⁺, α a few % |
 | Tb157 | every decay is M-shell EC to **Gd157[54.536]** | EC 100%, to the ground state |
 
-¹ The α detail line has Q = −15 keV, so no α particle is emitted (see report A).
+¹ The α detail line has Q = −15 keV, so no α particle is emitted (see bug 2780).
 
 ## The data
 
@@ -61,7 +61,7 @@ z81.a183 (Tl183)
    detail lines: Alpha 50 %, BetaPlus 50 %
 ```
 
-In Pu233 the EC branch is missing and the α branch, with 0.12% of decays in its detail line, becomes 100% of the decays. Its Q column is also −15 keV, so the α particle is not emitted (see report A). In Tl183 the β⁺ branch has detail lines but a summary fraction of 0.
+In Pu233 the EC branch is missing and the α branch, with 0.12% of decays in its detail line, becomes 100% of the decays. Its Q column is also −15 keV, so the α particle is not emitted (see bug 2780). In Tl183 the β⁺ branch has detail lines but a summary fraction of 0.
 
 **Candidate levels (21):** Rh98[56.3], Tb157, Ho152, Tm155[41], Os181[49.2], Tl181, Tl183, Pb185, Bi212[239], Bi212[1478], Np231, Pu233, Am232, Am233, Cm234, Bk234, Md248, No255, Lr262, Db262 and Sg265[152X].
 
@@ -75,7 +75,7 @@ They were selected by a heuristic: the summary gives more than 50% of the decays
 ## Related reports
 
 Five reports on RadioactiveDecay6.1.2, submitted separately:
-- A. Q ≤ 0 in the detail lines: no β particle emitted
+- A. Q ≤ 0 in the detail lines: no β particle emitted (bug 2780)
 - B. Ground states with a spurious IT branch, or matched to a floating level: wrong decay modes, some decays emit nothing
 - C. Unstable levels without decay data are killed without emitting anything, and without a warning
 - D. Wrong decay-mode totals in some levels (this report)

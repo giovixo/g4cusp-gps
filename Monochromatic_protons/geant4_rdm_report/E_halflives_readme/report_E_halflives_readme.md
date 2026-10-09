@@ -47,7 +47,7 @@ The comment headers have the same problem; for example, `z39.a90` says `# 90Y ( 
 ## 2. README_RDM does not match the files
 
 - It describes the summary lines as four columns (mode, 0, floating flag, fraction). The files have three: there is no floating-flag column. The script counts 9832 three-column lines and no four-column ones.
-- It describes the detail lines as five columns but names only four fields (mode, daughter level, floating flag, branching ratio). The fifth, the Q-value in keV, is not documented, although `LoadDecayTable` passes it to the decay channel as the Q-value (see report A).
+- It describes the detail lines as five columns but names only four fields (mode, daughter level, floating flag, branching ratio). The fifth, the Q-value in keV, is not documented, although `LoadDecayTable` passes it to the decay channel as the Q-value (see bug 2780).
 - It says the detail percentages are relative to the mode total. In 1486 of the 3228 levels with detail lines, the percentages of at least one mode do not add up to 100 (±1); they are relative to all decays. This is harmless while the summary fractions are right, because `LoadDecayTable` rescales the detail lines of each mode to its summary fraction (but see report D).
 - `LoadDecayTable` tells summary and detail lines apart by line length (after removing trailing blanks: summary < 72 characters, detail without β type < 84, with β type ≥ 84), not by column count, and reads each line into a 120-character buffer. Every line in 6.1.2 satisfies these rules (the longest is 113 characters), but the README does not mention them, so a hand-edited file can easily break them.
 
@@ -59,7 +59,7 @@ The comment headers have the same problem; for example, `z39.a90` says `# 90Y ( 
 ## Related reports
 
 Five reports on RadioactiveDecay6.1.2, submitted separately:
-- A. Q ≤ 0 in the detail lines: no β particle emitted
+- A. Q ≤ 0 in the detail lines: no β particle emitted (bug 2780)
 - B. Ground states with a spurious IT branch, or matched to a floating level: wrong decay modes, some decays emit nothing
 - C. Unstable levels without decay data are killed without emitting anything, and without a warning
 - D. Wrong decay-mode totals in some levels

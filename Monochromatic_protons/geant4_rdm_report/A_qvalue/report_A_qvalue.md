@@ -93,7 +93,7 @@ The database was regenerated from ENSDF in version 6.0, so other corrections mad
 ## Related reports
 
 Five reports on RadioactiveDecay6.1.2, submitted separately:
-- A. Q ≤ 0 in the detail lines: no β particle emitted (this report)
+- A. Q ≤ 0 in the detail lines: no β particle emitted (this report, bug 2780)
 - B. Ground states with a spurious IT branch, or matched to a floating level: wrong decay modes, some decays emit nothing
 - C. Unstable levels without decay data are killed without emitting anything, and without a warning
 - D. Wrong decay-mode totals in some levels

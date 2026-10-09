@@ -76,7 +76,7 @@ them if they are not meant to be used.
 - It describes the detail lines as five columns but names only four fields
   (mode, daughter level, floating flag, branching ratio). The fifth, the
   Q-value in keV, is not documented, although LoadDecayTable passes it to the
-  decay channel as the Q-value (see report A).
+  decay channel as the Q-value (see bug 2780).
 - It says the detail percentages are relative to the mode total. In 1486 of
   the 3228 levels with detail lines, the percentages of at least one mode do
   not add up to 100 (+-1); they are relative to all decays. This is harmless
@@ -102,7 +102,7 @@ Related reports
 ---------------
 
 Five reports on RadioactiveDecay6.1.2, submitted separately:
-- A. Q <= 0 in the detail lines: no beta particle emitted
+- A. Q <= 0 in the detail lines: no beta particle emitted (bug 2780)
 - B. Ground states with a spurious IT branch, or matched to a floating level:
   wrong decay modes, some decays emit nothing
 - C. Unstable levels without decay data are killed without emitting anything,

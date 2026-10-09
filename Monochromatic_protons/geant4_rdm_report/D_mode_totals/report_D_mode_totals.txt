@@ -63,7 +63,7 @@ Results with rdecay01
     Tb157           every decay is M-shell EC to Gd157[54.536]     EC 100%, to the ground state
 
 (1) The alpha detail line has Q = -15 keV, so no alpha particle is emitted
-(see report A).
+(see bug 2780).
 
 The data
 --------
@@ -82,7 +82,7 @@ Two examples:
 
 In Pu233 the EC branch is missing and the alpha branch, with 0.12% of decays
 in its detail line, becomes 100% of the decays. Its Q column is also -15 keV,
-so the alpha particle is not emitted (see report A). In Tl183 the beta+ branch
+so the alpha particle is not emitted (see bug 2780). In Tl183 the beta+ branch
 has detail lines but a summary fraction of 0.
 
 Candidate levels (21): Rh98[56.3], Tb157, Ho152, Tm155[41], Os181[49.2],
@@ -107,7 +107,7 @@ Related reports
 ---------------
 
 Five reports on RadioactiveDecay6.1.2, submitted separately:
-- A. Q <= 0 in the detail lines: no beta particle emitted
+- A. Q <= 0 in the detail lines: no beta particle emitted (bug 2780)
 - B. Ground states with a spurious IT branch, or matched to a floating level:
   wrong decay modes, some decays emit nothing
 - C. Unstable levels without decay data are killed without emitting anything,
