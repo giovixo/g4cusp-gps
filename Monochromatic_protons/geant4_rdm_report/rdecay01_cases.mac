@@ -42,3 +42,13 @@
 /run/beamOn 20000
 /gun/ion 96 252
 /run/beamOn 20000
+#
+# 5. Wrong decay-mode totals
+/gun/ion 94 233
+/run/beamOn 20000
+/gun/ion 93 231
+/run/beamOn 20000
+/gun/ion 81 183
+/run/beamOn 20000
+/gun/ion 65 157
+/run/beamOn 20000

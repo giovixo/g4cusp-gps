@@ -17,6 +17,11 @@ Checks
      matches to a floating level of the decay library
   E. 'P'-line half-lives differing by > 1 % from ENSDFSTATE (informational:
      LoadDecayTable ignores them)
+  F. levels (1 s <= T1/2 < 1e15 s) whose summary gives > 50 % of the decays to a
+     mode whose detail lines add up to < 50 %, or ~0 to a mode whose detail lines
+     add up to >= 1 %: candidates for wrong mode totals (detail percentages here
+     are relative to all decays, so the summary overstates that mode, or a mode
+     is missing)
 """
 import math
 import os
@@ -103,7 +108,11 @@ for (Z, A), levels in sorted(lib.items()):
     for lv in levels:
         bad = [d for d in lv["detail"] if d[0] != "IT" and d[2] > 0 and d[3] <= 0]
         if bad:
-            frac = sum(d[2] for d in bad)
+            # Geant4 rescales detail percentages so that each mode sums to its summary fraction
+            msum = defaultdict(float)
+            for d in lv["detail"]:
+                msum[d[0]] += d[2]
+            frac = 100 * sum(lv["summary"].get(d[0], 0) * d[2] / msum[d[0]] for d in bad)
             modes = sorted({d[0] for d in bad})
             qs = ", ".join(f"{d[3]:g}" for d in bad[:3])
             print(f"   {name(Z, A, lv['E'], lv['flb']):16s} {len(bad):3d} branches, {frac:8.3f} % "
@@ -150,3 +159,27 @@ for (Z, A), levels in sorted(lib.items()):
                           f"ENSDFSTATE {fmt_t(hl)}")
                 break
 print(f"   total: {n_e}")
+
+# ---- F ----------------------------------------------------------------------
+print("\nF. Candidate wrong decay-mode totals (summary > 0.5 with detail lines < 50 %, or summary ~0 with detail lines >= 1 %)")
+NOT_IMPL = {"BDProton", "BDNeutron", "Beta2Minus", "Beta2Plus", "Proton2", "Neutron2"}
+n_f = 0
+for (Z, A), levels in sorted(lib.items()):
+    for lv in levels:
+        hl = [h for e, f, h in ensdf.get((Z, A), []) if abs(e - lv["E"]) < TOL and f == lv["flb"]]
+        if not hl or not 1.0 <= hl[0] < 1e15:
+            continue
+        dsum = defaultdict(float)
+        for d in lv["detail"]:
+            dsum[d[0]] += d[2]
+        bad = [m for m, v in lv["summary"].items()
+               if m != "IT" and m not in NOT_IMPL and v > 0.5 and dsum.get(m, 0) < 50]
+        bad += [m for m, v in dsum.items()          # mode with intensity but no total
+                if m not in NOT_IMPL and v >= 1 and lv["summary"].get(m, 0) < 1e-6]
+        if bad:
+            n_f += 1
+            summ = ", ".join(f"{m} {v:.3g}" for m, v in lv["summary"].items() if v > 1e-6)
+            det = ", ".join(f"{m} {v:.3g}%" for m, v in dsum.items() if v > 0)
+            print(f"   {name(Z, A, lv['E'], lv['flb']):16s} T1/2 = {fmt_t(hl[0]):10s} "
+                  f"summary: {summ}; detail sums: {det}")
+print(f"   total: {n_f}")

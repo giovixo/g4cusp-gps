@@ -7,7 +7,7 @@
 
 ## Summary
 
-Some entries of RadioactiveDecay6.1.2 are inconsistent. `G4VRadioactiveDecay::LoadDecayTable` uses these entries as they are. As a result, for some nuclides Geant4 decays the nucleus but emits no beta particle, or emits no radiation at all. No G4Exception or warning is issued in any of these cases. Four classes of problems have a visible effect in Geant4:
+Some entries of RadioactiveDecay6.1.2 are inconsistent. `G4VRadioactiveDecay::LoadDecayTable` uses these entries as they are. As a result, for some nuclides Geant4 decays the nucleus but emits no beta particle, or emits no radiation at all. No G4Exception or warning is issued in any of these cases. Five classes of problems have a visible effect in Geant4:
 
 1. **Q ≤ 0 in the detail lines (75 levels):** no electron (β⁻) or positron (β⁺) is emitted.
    - Examples: **Mo99**, Ru103, I132, Y92, Y88, Cd105, Cd107, Sn113.
@@ -18,8 +18,12 @@ Some entries of RadioactiveDecay6.1.2 are inconsistent. `G4VRadioactiveDecay::Lo
    - Example: the Tm164 ground state emits nothing in 80% of its decays.
 4. **Levels with no decay data (56 levels that Geant4 can create, T½ ≥ 1 s):** the nucleus is killed when it decays, without emitting anything.
    - Examples: Ta178[0.000X] (2.36 h), Cm252 (2.0 d), Bi198 (10.3 min).
+5. **Wrong decay-mode totals (21 candidate levels with T½ ≥ 1 s):** the summary lines give the wrong share of decays to each mode, or leave a mode out.
+   - Pu233 never decays by EC and emits no alpha particle; Np231 decays by alpha 95% of the time instead of about 2%; Tl183 decays by alpha every time; every Tb157 decay feeds a 54.5 keV level of Gd157.
 
-A fifth issue is only in the data files and has no effect in Geant4: 80 half-lives on the `P` lines disagree with ENSDFSTATE (see section 5).
+Two further issues have no direct effect in Geant4 (sections 6 and 7):
+- 80 half-lives on the `P` lines disagree with ENSDFSTATE;
+- README_RDM does not describe the file format correctly.
 
 Attached:
 - `check_rdm_data.py`: a standard-library Python script that finds all affected levels in the data files;
@@ -56,11 +60,13 @@ Counts of particles generated in 20,000 single decays, from the "Nb of generated
 | Ta178[0.000X] | 4 | 0 | 0 | 0 | **0** | 20000 νₑ (EC/β⁺ to Hf178) |
 | Cm252 | 4 | 0 | 0 | 0 | 0 | 20000 β⁻/α decays |
 
+The cases of issue 5 are in section 5.
+
 In every case the decay itself takes place with the correct ENSDFSTATE mean life. The missing products are the β particles, or the whole decay. For issues 1 and 2 the excited daughter levels are still produced, so their de-excitation gammas are still emitted later in a full-chain simulation.
 
 ## 1. Q ≤ 0 in the detail lines: no beta particle emitted
 
-In 75 levels, the Q column of non-IT detail lines is zero or negative. It appears to be stored as Q(ground state) − E(daughter level) with Q(ground state) = 0. Example, `z42.a99` (Mo99, real Q_β⁻ = 1357.8 keV):
+In 75 levels, the Q column of non-IT detail lines is zero or negative. It appears to be stored as Q(ground state) − E(daughter level) with Q(ground state) = 0. (README_RDM does not describe this column; `LoadDecayTable` passes it to the decay channel as the Q-value.) Example, `z42.a99` (Mo99, real Q_β⁻ = 1357.8 keV):
 
 ```
 P            0  -     237326.4
@@ -80,6 +86,17 @@ Correct example, `z39.a90` (Y90):
 
 **Affected levels:** Ni59, Rb98, Rb98[270], Y88, Y92, Y94, Y96, Y96[1140], Y97, Y97[667.52], Y97[3522.6], Zr85, Nb84, Nb87, Nb87[3.9], Nb100, Nb100[314], Nb101, Mo87, **Mo99**, Tc86, Tc101, Ru103, Ru105, Ru107, Ru108, Rh98, Rh98[56.3], Rh105, Rh106, Rh106[137], Rh108, Rh111, Rh116, Rh116[150], Pd126, Ag117, Ag117[28.6], Ag118, Ag118[127.63], Ag120, Ag120[203], Cd105, Cd107, Sn106, Sn113, Sn133, Te133, I132, I132[120], Eu130, Tb150, Tb162, Dy163, Ho141[66], Ho154, Ho171, Er165, Yb164, Lu150, Lu156[0X], Hf161, W161, Ir194[190X], Au180, Au181, Bi195, Bi196[271], Po212[2930], Fr214[121], Ra214[1865.2], U228, Pu233, Am234 and Cm248. Most of them lie in the region Z = 37–53. The fraction of decays affected per level is listed in section B of `check_rdm_data.out`.
 
+**This is a regression for Ir194[190X].** The History file says, for version 5.1.1: "Correction of negative Q value for metastable 190+X level in z77.a194. Bug mentioned by D. Wright." In 6.1.2 the 97% branch of that level again has Q = −20.14 keV:
+
+```
+P          190 +X        69048
+                              BetaMinus            0               1
+                              BetaMinus      2099.55  -            3       318.75
+                              BetaMinus      2438.44  -           97       -20.14
+```
+
+The database was regenerated from ENSDF in version 6.0, so earlier corrections may have been lost elsewhere too; version 6.1 already had to restore several files corrected in 5.x.
+
 ## 2. Ground states with an IT branch onto themselves
 
 Ten ground states, without a floating flag, have an `IT` summary line. Example, `z39.a92` (Y92, β⁻ 100% in ENSDF):
@@ -91,7 +108,7 @@ P            0  -        12744
                               BetaMinus            0  -       85.741            0    uniqueFirstForbidden
 ```
 
-The β⁻ detail lines alone sum to 100%.
+There is no IT detail line, and ENSDF gives β⁻ 100% for Y92. A ground state has no lower level to make an isomeric transition to.
 
 **Effect in Geant4:** the IT fraction of decays produces no particle at all. Y92 emits a ν̄ₑ in 10007 of 20000 decays; Tb154 emits a νₑ in 16347 of 20000 decays (expected: every decay).
 
@@ -156,9 +173,38 @@ The full list is in the reproducer output. Ta178[0.000X] is produced, for exampl
 
 **Expected:** decay data for these levels, or at least a warning when an unstable nucleus with a finite ENSDFSTATE lifetime has no decay channel.
 
-## 5. Half-lives on the `P` lines (no effect in Geant4)
+## 5. Wrong decay-mode totals
 
-The README of RadioactiveDecay says that the half-life on the `P` lines is ignored and that lifetimes are taken from ENSDFSTATE. I confirmed that Geant4 uses the ENSDFSTATE values. However, 80 `P`-line half-lives differ from ENSDFSTATE by more than 1%, and several are exchanged between a ground state and an isomer:
+README_RDM says that the detail percentages are relative to the total of their mode. `LoadDecayTable` follows this: it rescales the detail lines of each mode so that they add up to the mode's summary fraction. Only the summary lines therefore decide how often each mode occurs.
+
+In practice, 1486 of 3228 levels with detail lines give the percentages relative to all decays instead. This is harmless when the summary fractions are right. In some levels, however, the summary fractions seem to come from renormalising the detail percentages to 1. When a mode has no placed intensity it then disappears, and the remaining modes are inflated. Examples:
+
+```
+z94.a233 (Pu233; ENSDF: EC 99.88%, α 0.12%)
+P            0  -         1254
+                                  Alpha            0               1
+                                  Alpha           15  -         0.12          -15
+
+z81.a183 (Tl183)
+                                  Alpha            0               1
+                               BetaPlus            0               0
+   detail lines: Alpha 50 %, BetaPlus 50 %
+```
+
+**Effect in Geant4** (rdecay01, 20,000 single decays each):
+
+| Nuclide | Observed | Expected (ENSDF) |
+|---|---|---|
+| Pu233 | every decay gives U229[15] with **no alpha particle** (also Q = −15 keV) | EC 99.88% to Np233, α 0.12% |
+| Np231 | α 19008 (95%), β⁺ 992 (5%) | EC/β⁺ 98%, α 2% |
+| Tl183 | α 20000 (100%) | mostly EC/β⁺, α a few % |
+| Tb157 | every decay is M-shell EC to **Gd157[54.536]** | EC 100% to the ground state |
+
+**Candidate levels:** Rh98[56.3], Tb157, Ho152, Tm155[41], Os181[49.2], Tl181, Tl183, Pb185, Bi212[239], Bi212[1478], Np231, Pu233, Am232, Am233, Cm234, Bk234, Md248, No255, Lr262, Db262 and Sg265[152X]. These come from a heuristic (section F of `check_rdm_data.out`): the summary gives more than 50% of decays to a mode whose detail lines add up to less than 50%, or about 0 to a mode whose detail lines add up to 1% or more. Each case should be checked against ENSDF.
+
+## 6. Half-lives on the `P` lines (no effect in Geant4)
+
+The README of RadioactiveDecay says that the half-life on the `P` lines is ignored for alpha decay, beta decay and IT, and that lifetimes are taken from ENSDFSTATE. In fact, `LoadDecayTable` reads it into a dummy variable for every mode, and I confirmed that Geant4 uses the ENSDFSTATE values. However, 80 `P`-line half-lives differ from ENSDFSTATE by more than 1%, and several are exchanged between a ground state and an isomer:
 
 | Nuclide | `P` line | ENSDFSTATE |
 |---|---|---|
@@ -172,10 +218,19 @@ The README of RadioactiveDecay says that the half-life on the `P` lines is ignor
 
 The comment headers have the same problem; for example, `z39.a90` says `# 90Y ( 3.19 H )`. This doesn't affect Geant4, but it misleads anyone who reads the files directly. We used them in an external Bateman-equation code and got wrong activities. It would help to correct these values, or to remove them if they are not meant to be used.
 
+## 7. README_RDM does not match the files
+
+- It describes the summary lines as four columns (mode, 0, floating flag, fraction). The files have three: there is no floating-flag column.
+- It describes the detail lines as five columns but names only four fields (mode, daughter level, floating flag, branching ratio). The fifth, the Q-value in keV, is not documented, although `LoadDecayTable` uses it (issue 1).
+- It says the detail percentages are relative to the mode total. In 1486 of 3228 levels they are relative to all decays (section 5).
+- `LoadDecayTable` tells summary and detail lines apart by line length (< 72 characters) rather than by column count. I checked that every line in 6.1.2 satisfies this; the README does not mention it.
+
 ## Possible fixes
 
-- Regenerate the affected entries (issues 1–3) from ENSDF.
+- Regenerate the affected entries (issues 1–3 and 5) from ENSDF, and check that the corrections made in 5.x (e.g. Ir194[190X]) are kept.
 - In `LoadDecayTable`:
   - issue a warning, or a JustWarning G4Exception, when the file has no level matching an unstable nucleus;
   - issue one when a level with `noFloat` is matched to a floating level;
-  - issue one when a detail line has Q ≤ 0 for a mode other than IT.
+  - issue one when a detail line has Q ≤ 0 for a mode other than IT;
+  - issue one when a ground state (E = 0, no floating flag) has an IT branch.
+- Update README_RDM to describe the actual format, including the Q column.
