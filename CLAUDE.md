@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-Geant4 simulation of the CUSP CubeSat polarimeter, branch `activation`: it computes the radioactive
-nuclides produced in the CUSP mass model by trapped protons and turns them into an activation
-background spectrum. It follows the method of Campana et al. 2026 (Exp. Astron. 61:21).
+Geant4 simulation of the CUSP CubeSat polarimeter, branches `activation` and `post-activation`: it computes
+the radioactive nuclides produced in the CUSP mass model by trapped protons and turns them into an
+activation background spectrum. It follows the method of Campana et al. 2026 (Exp. Astron. 61:21).
 `Campana_2026.pdf` in the root is git-ignored on purpose (publisher copyright): never commit it.
 
 ## Environment and build
@@ -15,8 +15,19 @@ background spectrum. It follows the method of Campana et al. 2026 (Exp. Astron. 
 - For a scratch build use `cmake -S . -B <dir>`. A bare `cmake <srcdir>` reconfigures the in-source cache.
   Keep `WITH_GEANT4_UIVIS=ON`.
 
-## Geant4 application
+## Branches
 
+- **Never touch `main`** (no commits, merges or pushes).
+- `post-activation` = `activation` (merged in `9896885`) + the post-activation program (step 4). Work happens
+  here; when step 4 works, `activation` is fast-forwarded to it and the two branches become one.
+
+## Geant4 applications
+
+- Two executables from one CMake project (one Xcode project, two schemes):
+  `cusp-activation` (steps 0–3: nuclide production) and `cusp-postactivation` (step 4: decay of each
+  nuclide in each volume, detector response; work in progress).
+- Sources are split into `src/` + `include/` subdirectories: `common/` (`DetectorConstruction`, `PhysicsList`,
+  built as the static library `cusp-common`), `activation/` and `postactivation/` (classes prefixed `PostAct`).
 - `cusp-activation [-t nthreads] [-n] [macro]`: `-t 0` = all cores; `-n` removes `G4NeutronTrackingCut`
   (neutron activation). No macro opens the GUI.
 - Physics: Livermore EM, `G4HadronElasticPhysicsXS`, QBBC inelastic, stopping, `G4IonPhysicsXS`,

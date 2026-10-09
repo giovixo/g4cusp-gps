@@ -18,24 +18,41 @@ endif()
 
 #----------------------------------------------------------------------------
 # Setup Geant4 include directories and compile definitions
-# Setup include directory for this project
 #
 include(${Geant4_USE_FILE})
-include_directories(${PROJECT_SOURCE_DIR}/include)
 
 #----------------------------------------------------------------------------
-# Locate sources and headers for this project
-# NB: headers are included so they will show up in IDEs
-# CONFIGURE_DEPENDS re-runs the glob at build time, so added/removed files are picked up
+# Sources: one directory per part, in both src/ and include/
+#   common/          geometry and physics list, shared by the two programs
+#   activation/      user actions of cusp-activation (nuclide production)
+#   postactivation/  user actions of cusp-postactivation (decay of the nuclides)
+# NB: headers are listed so they show up in IDEs.
+# CONFIGURE_DEPENDS re-runs the globs at build time, so added/removed files are picked up
 #
-file(GLOB sources CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/*.cc)
-file(GLOB headers CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/include/*.hh)
+file(GLOB common_sources CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/common/*.cc)
+file(GLOB common_headers CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/include/common/*.hh)
+file(GLOB activation_sources CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/activation/*.cc)
+file(GLOB activation_headers CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/include/activation/*.hh)
+file(GLOB postactivation_sources CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/postactivation/*.cc)
+file(GLOB postactivation_headers CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/include/postactivation/*.hh)
 
 #----------------------------------------------------------------------------
-# Add the executable, and link it to the Geant4 libraries
+# Shared code, built once as a static library
 #
-add_executable(cusp-activation cusp-activation.cc ${sources} ${headers})
-target_link_libraries(cusp-activation ${Geant4_LIBRARIES})
+add_library(cusp-common STATIC ${common_sources} ${common_headers})
+target_include_directories(cusp-common PUBLIC ${PROJECT_SOURCE_DIR}/include/common)
+target_link_libraries(cusp-common PUBLIC ${Geant4_LIBRARIES})
+
+#----------------------------------------------------------------------------
+# Add the executables, and link them to the shared code and the Geant4 libraries
+#
+add_executable(cusp-activation cusp-activation.cc ${activation_sources} ${activation_headers})
+target_include_directories(cusp-activation PRIVATE ${PROJECT_SOURCE_DIR}/include/activation)
+target_link_libraries(cusp-activation cusp-common)
+
+add_executable(cusp-postactivation cusp-postactivation.cc ${postactivation_sources} ${postactivation_headers})
+target_include_directories(cusp-postactivation PRIVATE ${PROJECT_SOURCE_DIR}/include/postactivation)
+target_link_libraries(cusp-postactivation cusp-common)
 
 #----------------------------------------------------------------------------
 # Copy the macro and GDML files to the build directory at every build
@@ -50,8 +67,9 @@ add_custom_target(copy_runtime_files ALL
                   DEPENDS ${RUNTIME_FILES}
                   COMMENT "Copying macro and GDML files to ${PROJECT_BINARY_DIR}")
 add_dependencies(cusp-activation copy_runtime_files)
+add_dependencies(cusp-postactivation copy_runtime_files)
 
 #----------------------------------------------------------------------------
-# Install the executable to 'bin/Darwin-g++' directory under CMAKE_INSTALL_PREFIX
+# Install the executables to 'bin/Darwin-g++' directory under CMAKE_INSTALL_PREFIX
 #
-install(TARGETS cusp-activation DESTINATION bin/Darwin-g++)
+install(TARGETS cusp-activation cusp-postactivation DESTINATION bin/Darwin-g++)
