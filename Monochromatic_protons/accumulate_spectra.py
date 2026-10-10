@@ -45,12 +45,15 @@ Output
       'beam_area_cm2', 'nprim_per_step' ({E: N_j}), 'in_belt_only',
       'activity_threshold', and the spectra source: 'spectra_source' (file or
       directory), 'spectra_mode', 'edges_keV' (channel edges), 'emin_keV',
-      'emax_keV' (band of the count rate; None = whole axis).
+      'emax_keV' (band of the count rate; None = whole axis), 'profile_emin_MeV'
+      (lowest simulation energy: steps 7 and 8 take F(>E_min) as the time
+      profile of the flux).
   count_rate.dat
       Two-column ASCII: time_s  count_rate [counts/s], the spectrum integrated
       over the band (sum of spectrum x channel width over the channels whose
       centres lie in [emin, emax]; default the whole axis).  With a spectra file
-      or a band, header lines 'source:', 'mode:' and 'band_keV:' record them.
+      or a band, header lines 'source:', 'mode:' and 'band_keV:' record them;
+      'profile_emin_MeV:' records E_min.
 
 Usage (CLI)
 -----------
@@ -484,6 +487,7 @@ def accumulate(
         "edges_keV":          src.edges.tolist(),
         "emin_keV":           emin,
         "emax_keV":           emax,
+        "profile_emin_MeV":   sim_energies[0],
     })
     count_rate = pd.Series(band_integral(total, src.widths, mask), index=index,
                            name="count_rate_cps")
@@ -515,6 +519,7 @@ def save_outputs(
     if a.get("spectra_kind") == "npz" or a.get("emin_keV") is not None or a.get("emax_keV") is not None:
         header += (f"\nsource: {a.get('spectra_source')}\nmode: {a.get('spectra_mode')}"
                    f"\nband_keV: {a.get('emin_keV')} {a.get('emax_keV')}")
+    header += f"\nprofile_emin_MeV: {a.get('profile_emin_MeV')}"
     np.savetxt(
         outdir / "count_rate.dat",
         np.column_stack([count_rate.index.to_numpy(), count_rate.to_numpy()]),

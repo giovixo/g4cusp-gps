@@ -153,9 +153,10 @@ def compute_pair_weights(
                   .groupby(level=["volume", "isotope"]).sum())
 
     # Lag-weighted steady-state average, as in average_spectrum
-    flux, _, F_mean, dt_s = _prepare_flux_and_norm(spenvis_file, in_belt_only)
+    flux, _, F_mean, dt_s, total = _prepare_flux_and_norm(spenvis_file, in_belt_only,
+                                                          profile_emin=sim_energies[0])
     T = tau[-1] if duration_s is None else min(duration_s, tau[-1])
-    select = np.ones(len(flux), bool) if all_orbit else ~belt_mask(flux, belt_threshold)
+    select = np.ones(len(flux), bool) if all_orbit else ~belt_mask(total, belt_threshold)
     if not select.any():
         raise ValueError("No out-of-belt steps in the SPENVIS file.")
     w_far = float(np.mean(flux) / F_mean)
@@ -546,7 +547,9 @@ def build_argparser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_argparser().parse_args(argv)
     outdir = Path(args.outdir).resolve()
-    cfg = {"executable": args.executable, "geometry_dir": args.geometry_dir,
+    # Absolute paths: Geant4 runs in <outdir>/work
+    cfg = {"executable": str(Path(args.executable).resolve()),
+           "geometry_dir": str(Path(args.geometry_dir).resolve()),
            "threads": args.threads, "pre_commands": args.pre_commands}
     exe, geo = Path(cfg["executable"]), Path(cfg["geometry_dir"])
     if not args.dry_run and not os.access(exe, os.X_OK):

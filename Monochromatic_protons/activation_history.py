@@ -34,10 +34,18 @@ x e^-x / (1 - e^-x), x = dt / tau_m, of its equilibrium rate.
 R is log-linear between its grid points (exact for a single exponential),
 constant before the first point and zero after the last.
 
+F is the integral flux above the lowest simulation energy E_min, F(>E_min),
+interpolated between the SPENVIS levels: protons below E_min are not simulated
+and produce no activity, and their time profile along the orbit differs from
+that of the activating protons (in the AP8MIN 550 km file the peak-to-mean
+ratio of the total flux, F(>0.1 MeV), is twice that of F(>5 MeV)).
+accumulate_spectra.py records E_min in count_rate.dat ('profile_emin_MeV:');
+older files without it fall back to the total flux, with a warning.
+
 Out-of-belt averages
 --------------------
-A step is in the belt when the total integral flux (first SPENVIS column) is
-above --belt-threshold (default 0).  The running average of the long-term
+A step is in the belt when the total integral flux (first SPENVIS column, not
+the profile F(>E_min)) is above --belt-threshold (default 0).  The running average of the long-term
 mode and the summary rates use the out-of-belt steps only.
 
 Usage (CLI)
@@ -69,6 +77,8 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import warnings
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -101,8 +111,10 @@ def count_rate_info(path: str | Path) -> dict:
     """
     Source and energy band of a count_rate.dat, from the 'source:', 'mode:' and
     'band_keV:' header lines written by accumulate_spectra.py when it used a
-    spectra_<mode>.npz or a band.  Returns {} for the plain files, otherwise
-    {'source', 'mode', 'emin', 'emax', 'label'}; label is a short description
+    spectra_<mode>.npz or a band, and the energy of the flux time profile
+    ('profile_emin_MeV:', written since the profile is F(>E_min)).  Returns {}
+    for the plain files, otherwise {'source', 'mode', 'emin', 'emax',
+    'profile_emin', 'label'} (those present); label is a short description
     ('compton, 20-100 keV') for plot titles.
     """
     info: dict = {}
@@ -120,6 +132,8 @@ def count_rate_info(path: str | Path) -> dict:
                 lo, hi = val.split()
                 info["emin"] = None if lo == "None" else float(lo)
                 info["emax"] = None if hi == "None" else float(hi)
+            elif key == "profile_emin_MeV":
+                info["profile_emin"] = None if val == "None" else float(val)
     if info:
         lo, hi = info.get("emin"), info.get("emax")
         band = ("" if lo is None and hi is None else
@@ -129,37 +143,78 @@ def count_rate_info(path: str | Path) -> dict:
     return info
 
 
-def _read_total_flux(spenvis_file: str | Path) -> tuple[np.ndarray, np.ndarray]:
+@lru_cache(maxsize=8)
+def _read_flux_table(path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Read per-timestep total integral flux (F > E_min, first flux column) and MJD
-    from a SPENVIS output file.
-
-    Returns (flux [p/cm²/s], mjd), both shape (N,).
+    Energy levels [MeV], integral flux F(>E) of every time step [p/cm²/s]
+    (shape N x n_levels) and MJD (shape N) of a SPENVIS output file.  Cached:
+    the arrays are read-only.
     """
-    path = Path(spenvis_file)
-    n_flux_cols = None
-    flux_list: list[float] = []
-    mjd_list:  list[float] = []
-
+    levels = None
+    rows: list[list[float]] = []
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             line = line.rstrip("\r\n")
             if line.startswith("#"):
                 if "Energy levels" in line:
                     after = line.split(":", 1)[1]
-                    n_flux_cols = len(re.findall(r"[\d.]+(?:e[+-]?\d+)?", after))
+                    levels = [float(x) for x in re.findall(r"[\d.]+(?:e[+-]?\d+)?", after)]
                 continue
             stripped = line.strip()
-            if not stripped or n_flux_cols is None:
+            if not stripped or levels is None:
                 continue
             vals = [float(v) for v in stripped.split(",")]
-            if len(vals) == 4 + n_flux_cols:
-                mjd_list.append(vals[0])
-                flux_list.append(vals[4])
+            if len(vals) == 4 + len(levels):
+                rows.append([vals[0]] + vals[4:])
+    if not rows:
+        raise ValueError(f"No data rows found in {path}")
+    table = np.array(rows)
+    out = (np.array(levels), table[:, 1:], table[:, 0])
+    for a in out:
+        a.setflags(write=False)
+    return out
 
-    if not mjd_list:
-        raise ValueError(f"No data rows found in {spenvis_file}")
-    return np.array(flux_list), np.array(mjd_list)
+
+def read_flux_table(spenvis_file: str | Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(energy levels [MeV], F(>E) per time step [p/cm²/s], MJD) of a SPENVIS file."""
+    return _read_flux_table(str(Path(spenvis_file).resolve()))
+
+
+def _read_total_flux(spenvis_file: str | Path) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Read per-timestep total integral flux (F > E_min, first flux column) and MJD
+    from a SPENVIS output file.  It defines the belt passages.
+
+    Returns (flux [p/cm²/s], mjd), both shape (N,).
+    """
+    _, flux, mjd = read_flux_table(spenvis_file)
+    return flux[:, 0], mjd
+
+
+def flux_profile(spenvis_file: str | Path, emin: float | None) -> np.ndarray:
+    """
+    Integral flux F(>emin) [p/cm²/s] of every time step: the time profile of
+    the activating protons, with emin the lowest simulation energy.  Log-log
+    interpolation between the tabulated levels (linear where a bracket is
+    zero), as in spenvis_parser.parse_spenvis.  emin=None, or emin at or below
+    the first level, gives the first column (the total flux).
+    """
+    levels, flux, _ = read_flux_table(spenvis_file)
+    if emin is None or emin <= levels[0]:
+        return flux[:, 0]
+    if emin > levels[-1]:
+        raise ValueError(f"profile energy {emin:g} MeV is above the last level "
+                         f"({levels[-1]:g} MeV) of {spenvis_file}")
+    hi = int(np.searchsorted(levels, emin))
+    if levels[hi] == emin:
+        return flux[:, hi]
+    lo = hi - 1
+    f0, f1 = flux[:, lo], flux[:, hi]
+    s = (np.log(emin) - np.log(levels[lo])) / (np.log(levels[hi]) - np.log(levels[lo]))
+    lin = (emin - levels[lo]) / (levels[hi] - levels[lo])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        loglog = np.exp(np.log(f0) + s * (np.log(f1) - np.log(f0)))
+    return np.where((f0 > 0) & (f1 > 0), loglog, f0 + lin * (f1 - f0))
 
 
 def _parse_duration(s: str) -> float:
@@ -280,22 +335,32 @@ def lag_weights(
 def _prepare_flux_and_norm(
     spenvis_file: str | Path,
     in_belt_only: bool,
-) -> tuple[np.ndarray, np.ndarray, float, float]:
+    profile_emin: float | None = None,
+) -> tuple[np.ndarray, np.ndarray, float, float, np.ndarray]:
     """
     Load and normalise the one-period orbital flux.
 
-    Returns (flux_per_step, t_period, F_mean, dt).
+    profile_emin : energy [MeV] of the time profile F(>profile_emin), the
+                   lowest simulation energy; None uses the total flux (first
+                   column), as before the profile energy was recorded.
+
+    Returns (flux_per_step, t_period, F_mean, dt, total_flux): the time profile,
+    its mean (over the in-belt steps if in_belt_only) and the total flux, which
+    defines the belt passages.
     """
-    flux_per_step, mjd = _read_total_flux(spenvis_file)
+    total, mjd = _read_total_flux(spenvis_file)
+    flux_per_step = flux_profile(spenvis_file, profile_emin)
     N     = len(flux_per_step)
     dt    = float(np.median(np.diff(mjd)) * 86400.0)
     t_per = (mjd - mjd[0]) * 86400.0
 
     print(f"  Orbital flux: {N} timesteps, period={t_per[-1]:.1f} s, dt={dt:.1f} s")
-    print(f"  In-belt steps: {(flux_per_step > 0).sum()}/{N}")
+    print(f"  In-belt steps: {(total > 0).sum()}/{N}")
+    print(f"  Time profile: F(>{profile_emin:g} MeV)" if profile_emin is not None
+          else "  Time profile: total flux (first column)")
 
     if in_belt_only:
-        ib    = flux_per_step[flux_per_step > 0]
+        ib    = flux_per_step[total > 0]
         F_mean = ib.mean() if len(ib) else 1.0
         print(f"  F_mean (in-belt): {F_mean:.4e} p/cm²/s")
     else:
@@ -305,7 +370,23 @@ def _prepare_flux_and_norm(
     if F_mean == 0:
         raise ValueError("Mean flux is zero; cannot normalise.")
 
-    return flux_per_step, t_per, F_mean, dt
+    return flux_per_step, t_per, F_mean, dt, total
+
+
+def profile_energy(recorded: float | None, override: float | None, source: str) -> float | None:
+    """
+    Energy of the flux time profile: override if given, else the one recorded
+    by accumulate_spectra.py; files written before it was recorded fall back
+    to the total flux, with a warning.
+    """
+    if override is not None:
+        return override
+    if recorded is None:
+        warnings.warn(f"{source} does not record the energy of the flux time profile "
+                      f"(written before it was): the total flux is used. Rerun "
+                      f"accumulate_spectra.py, or pass the lowest simulation energy.",
+                      stacklevel=3)
+    return recorded
 
 
 def compute_history(
@@ -313,6 +394,7 @@ def compute_history(
     spenvis_file:    str | Path,
     in_belt_only:    bool  = False,
     belt_threshold:  float = 0.0,
+    profile_emin:    float | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute the activation-induced count rate over one SPENVIS period,
@@ -323,7 +405,9 @@ def compute_history(
     count_rate_file : count_rate.dat from accumulate_spectra.py
     spenvis_file    : SPENVIS AP9/AE9 output file
     in_belt_only    : if True, use in-belt mean flux for normalisation
-    belt_threshold  : flux above which a step is in the belt [p/cm²/s]
+    belt_threshold  : total flux above which a step is in the belt [p/cm²/s]
+    profile_emin    : energy [MeV] of the flux time profile (default: the one
+                      recorded in count_rate_file)
 
     Returns
     -------
@@ -334,14 +418,16 @@ def compute_history(
     tau, R = load_count_rate(count_rate_file)
     print(f"Reference R(tau): {len(tau)} points, R_max={R.max():.4e} counts/s")
 
-    flux_per_step, t_orb, F_mean, dt = _prepare_flux_and_norm(
-        spenvis_file, in_belt_only
+    emin = profile_energy(count_rate_info(count_rate_file).get("profile_emin"),
+                          profile_emin, str(count_rate_file))
+    flux_per_step, t_orb, F_mean, dt, total = _prepare_flux_and_norm(
+        spenvis_file, in_belt_only, emin
     )
     N = len(flux_per_step)
 
     K   = step_kernel(tau, R, dt, N)[:, 0]
     C   = np.maximum(fftconvolve(flux_per_step / F_mean, K)[:N], 0.0)
-    out = ~belt_mask(flux_per_step, belt_threshold)
+    out = ~belt_mask(total, belt_threshold)
 
     return t_orb, C, out
 
@@ -357,6 +443,7 @@ def compute_long_term_history(
     avg_window_s:    float  = 7 * 86400.0,
     in_belt_only:    bool   = False,
     belt_threshold:  float  = 0.0,
+    profile_emin:    float | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute the long-term activation count-rate history by tiling the
@@ -372,7 +459,9 @@ def compute_long_term_history(
     duration_s      : total simulation duration [s]
     avg_window_s    : width of the running-average window [s] (default 1 week)
     in_belt_only    : if True, use in-belt mean flux for normalisation
-    belt_threshold  : flux above which a step is in the belt [p/cm²/s]
+    belt_threshold  : total flux above which a step is in the belt [p/cm²/s]
+    profile_emin    : energy [MeV] of the flux time profile (default: the one
+                      recorded in count_rate_file)
 
     Returns
     -------
@@ -385,8 +474,10 @@ def compute_long_term_history(
     tau, R = load_count_rate(count_rate_file)
     print(f"Reference R(tau): {len(tau)} points, R_max={R.max():.4e} counts/s")
 
-    flux_one_period, t_per, F_mean, dt = _prepare_flux_and_norm(
-        spenvis_file, in_belt_only
+    emin = profile_energy(count_rate_info(count_rate_file).get("profile_emin"),
+                          profile_emin, str(count_rate_file))
+    flux_one_period, t_per, F_mean, dt, total_one = _prepare_flux_and_norm(
+        spenvis_file, in_belt_only, emin
     )
     N_orb    = len(flux_one_period)
     T_orb    = t_per[-1] + dt          # full period including last step
@@ -405,7 +496,7 @@ def compute_long_term_history(
     C = np.maximum(fftconvolve(flux_full / F_mean, K)[:M], 0.0)
 
     # Running average over the out-of-belt steps
-    out = ~belt_mask(flux_full, belt_threshold)
+    out = ~belt_mask(np.tile(total_one, n_periods), belt_threshold)
     W   = max(1, int(round(avg_window_s / dt)))
     num = uniform_filter1d(C * out, size=W, mode="nearest")
     den = uniform_filter1d(out.astype(float), size=W, mode="nearest")
@@ -585,6 +676,9 @@ def main(argv: list[str] | None = None) -> None:
                    help="Use in-belt mean flux for normalisation.")
     p.add_argument("--belt-threshold", type=float, default=0.0, metavar="FLUX",
                    help="Total flux [p/cm²/s] above which a step is in the belt.")
+    p.add_argument("--profile-emin", type=float, default=None, metavar="MEV",
+                   help="Energy of the flux time profile F(>E) [MeV]; default: the one "
+                        "recorded in count_rate.dat (the lowest simulation energy).")
     p.add_argument("--duration",   default=None, metavar="DUR",
                    help="Total simulation duration for long-term mode. "
                         "Examples: 3y, 18mo, 365d. If omitted, single orbit.")
@@ -600,10 +694,11 @@ def main(argv: list[str] | None = None) -> None:
     args = p.parse_args(argv)
 
     info = count_rate_info(args.count_rate)
-    if info:
+    if "source" in info:
         print(f"Count rate: {info['label'] or 'whole axis'} from {info.get('source')}")
     label = info.get("label", "")
-    dat_note = f"\nsource: {info['source']}\nmode: {info['mode']}\nband_keV: {info.get('emin')} {info.get('emax')}" if info else ""
+    dat_note = (f"\nsource: {info['source']}\nmode: {info.get('mode')}\nband_keV: {info.get('emin')} {info.get('emax')}"
+                if "source" in info else "")
 
     if args.duration is not None:
         # ---- Long-term mode ------------------------------------------------
@@ -619,6 +714,7 @@ def main(argv: list[str] | None = None) -> None:
             avg_window_s=avg_window_s,
             in_belt_only=args.in_belt_only,
             belt_threshold=args.belt_threshold,
+            profile_emin=args.profile_emin,
         )
 
         flux_one, _ = _read_total_flux(args.spenvis_file)
@@ -650,6 +746,7 @@ def main(argv: list[str] | None = None) -> None:
             spenvis_file=args.spenvis_file,
             in_belt_only=args.in_belt_only,
             belt_threshold=args.belt_threshold,
+            profile_emin=args.profile_emin,
         )
 
         print(f"\n  Peak rate        : {C.max():.4e} counts/s at t={t_orb[C.argmax()]:.1f} s")

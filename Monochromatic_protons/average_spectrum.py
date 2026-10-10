@@ -10,7 +10,9 @@ Physical basis
 S(tau, E) [counts/s/keV] is the spectrum at decay time tau after one SPENVIS
 time step dt of irradiation at the mean flux F_mean (accumulate_spectra.py).
 With the SPENVIS flux F repeating periodically and constant during each step,
-the spectrum at the end of step j is (as in activation_history.py)
+the spectrum at the end of step j is (as in activation_history.py; F is the
+flux above the lowest simulation energy, F(>E_min), recorded in spectra.pkl,
+and the belt passages are defined by the total flux)
 
     S_j(E) = sum_k K_k(E) F[j-k] / F_mean,
     K_k(E) = (1/dt) * integral_{k dt}^{(k+1) dt} S(tau, E) dtau.
@@ -86,7 +88,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
 try:
-    from activation_history import (_parse_duration, _prepare_flux_and_norm,
+    from activation_history import (_parse_duration, _prepare_flux_and_norm, profile_energy,
                                     belt_mask, cumulative_integral, lag_weights,
                                     step_kernel)
 except ImportError:
@@ -209,8 +211,9 @@ def compute_average_spectrum(
         print(f"Spectra source: {src_name}" + (f" (mode {src_mode})" if src_mode else ""))
 
     # ---- Orbit flux and lag weights ------------------------------------------
-    flux, _, F_mean, dt = _prepare_flux_and_norm(spenvis_file,
-                                                 bool(attrs.get("in_belt_only", False)))
+    emin = profile_energy(attrs.get("profile_emin_MeV"), None, str(spectra_pkl))
+    flux, _, F_mean, dt, total = _prepare_flux_and_norm(
+        spenvis_file, bool(attrs.get("in_belt_only", False)), emin)
     if abs(dt - attrs["timestep_s"]) > 1e-6 * dt:
         sys.exit(f"ERROR: time step of {spenvis_file} ({dt:.3f} s) differs from the one "
                  f"of {spectra_pkl.name} ({attrs['timestep_s']:.3f} s).")
@@ -219,7 +222,7 @@ def compute_average_spectrum(
               f"integrating up to {tau[-1]:.3g} s.")
     T = tau[-1] if duration_s is None else min(duration_s, tau[-1])
 
-    select = np.ones(len(flux), bool) if all_orbit else ~belt_mask(flux, belt_threshold)
+    select = np.ones(len(flux), bool) if all_orbit else ~belt_mask(total, belt_threshold)
     if not select.any():
         sys.exit("ERROR: no out-of-belt steps in the SPENVIS file.")
     w_far = float(np.mean(flux) / F_mean)
