@@ -95,6 +95,10 @@ activation background (rates and spectra). It follows the method of Campana et a
   `caffeinate -i`. `0_run.py` skips energies already done with the same nprim unless `--overwrite` is given.
 - Neutron activation (`-n`) changes the yields by less than 3e-5 at all energies: `output/` without `-n` is the
   reference set.
+- Photonuclear activation (`G4EmExtraPhysics`: gamma-, electro-, muon-nuclear), tested 2026-10-10 with 1e7 protons
+  at 20, 60, 150, 300, 700 MeV and the creator process of every nuclide: 11 photonNuclear nuclides out of 2.5e5
+  (1.2e-4 of the yield at 700 MeV, from pi0 photons; 0 at 150 and 300 MeV). Weighted with the orbit spectra:
+  ~5e-5 of the production (AP8MIN 4e-5, AP9 6e-5; < 3e-4 at 95% CL). Not included in the physics list.
 - Step 4 production (2026-10-10): 3e8 decays, N ∝ out-of-belt activity (pilot: N ∝ A·√p within 10%), 22,787
   pairs, about 2 h on 11 cores; the 2472 pairs below the step-3 threshold (~0.9% of the activity) were
   deliberately not simulated. `run_postactivation.py` resumes: complete batches are skipped, incomplete ones rerun.
