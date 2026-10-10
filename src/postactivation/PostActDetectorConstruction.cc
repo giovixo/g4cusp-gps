@@ -4,6 +4,9 @@
 #include "G4LogicalVolume.hh"
 #include "G4PhysicalVolumeStore.hh"
 #include "G4SDManager.hh"
+#include "G4SolidStore.hh"
+#include "G4TessellatedSolid.hh"
+#include "G4Voxelizer.hh"
 #include "G4VPhysicalVolume.hh"
 
 #include "G4Material.hh"
@@ -82,4 +85,26 @@ void PostActDetectorConstruction::ConstructSDandField()
     G4SDManager::GetSDMpointer()->AddNewDetector(sd);
     for (const auto& item : logicalIds)
         SetSensitiveDetector(const_cast<G4LogicalVolume*>(item.first), sd);
+}
+
+
+G4int PostActDetectorConstruction::PrefillVoxelCandidates()
+{
+    G4int nSolids = 0;
+    for (G4VSolid* solid : *G4SolidStore::GetInstance())
+    {
+        auto tess = dynamic_cast<G4TessellatedSolid*>(solid);
+        if (tess == nullptr) continue;
+        G4Voxelizer& voxels = tess->GetVoxels();
+        const G4int nx = G4int(voxels.GetBoundary(0).size()) - 1;
+        const G4int ny = G4int(voxels.GetBoundary(1).size()) - 1;
+        const G4int nz = G4int(voxels.GetBoundary(2).size()) - 1;
+        std::vector<G4int> voxel(3);
+        for (voxel[2] = 0; voxel[2] < nz; ++voxel[2])
+            for (voxel[1] = 0; voxel[1] < ny; ++voxel[1])
+                for (voxel[0] = 0; voxel[0] < nx; ++voxel[0])
+                    voxels.GetCandidates(voxel);
+        ++nSolids;
+    }
+    return nSolids;
 }

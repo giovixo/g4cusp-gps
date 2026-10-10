@@ -125,6 +125,10 @@ int main(int argc, char **argv)
     auto visManager = new G4VisExecutive;
     visManager->Initialize();
     
+    // Thread-safety work-around for the tessellated solids (see PostActDetectorConstruction)
+    G4cout << "PostAct: voxel candidates pre-filled for "
+           << PostActDetectorConstruction::PrefillVoxelCandidates() << " tessellated solids" << G4endl;
+
     // Get the pointer to the User Interface manager
     auto uiManager = G4UImanager::GetUIpointer();
 
