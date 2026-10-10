@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Geant4 simulation of the CUSP CubeSat polarimeter, branches `activation` and `post-activation`: it computes
+Geant4 simulation of the CUSP CubeSat polarimeter, branch `activation`: it computes
 the radioactive nuclides produced in the CUSP mass model by trapped protons and turns them into an
 activation background spectrum. It follows the method of Campana et al. 2026 (Exp. Astron. 61:21).
 `Campana_2026.pdf` in the root is git-ignored on purpose (publisher copyright): never commit it.
@@ -19,9 +19,10 @@ activation background spectrum. It follows the method of Campana et al. 2026 (Ex
 
 - **Never touch `main`**: no commits, merges, rebases, pushes or checkouts, and no worktrees or branches
   based on it. The Agent tool's `isolation: "worktree"` bases worktrees on `main`: do not use it here.
-- `post-activation` = `activation` (merged in `9896885`) + the post-activation program (step 4), pushed to
-  `origin/post-activation`. Work happens here; `activation` (at `44a86a8`) will be fast-forwarded to it when the
-  user decides, and the two branches become one.
+- **Work on `activation` only**: it holds the whole pipeline, steps 0–8 (the post-activation work was merged
+  into it by fast-forward on 2026-10-10). `post-activation` is retired: the local branch is deleted; the remote
+  one (created by the repository owner) is kept with one extra commit, `BRANCH_RETIRED.md`, a reminder that it can
+  be deleted (`git push origin --delete post-activation`) once the owner agrees.
 
 ## Geant4 applications
 
