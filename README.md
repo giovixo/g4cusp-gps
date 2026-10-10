@@ -11,7 +11,7 @@ The repository has two GEANT4 programs and a Python pipeline:
 |---|---|
 | `cusp-activation` | protons on the mass model → production yields of the nuclides, per volume |
 | `cusp-postactivation` | decays one nuclide in one volume → energy deposits in the 96 scintillators |
-| `Monochromatic_protons/` | Python pipeline (steps 0–8): runs both programs, solves the decay chains, folds with the orbit flux |
+| `activation-pipeline/` | Python pipeline (steps 0–8): runs both programs, solves the decay chains, folds with the orbit flux |
 
 Source model: General Purpose Source (GPS)
 
@@ -94,7 +94,7 @@ The pipeline (`0_run.py`) does this merge itself.
 ```
 
 One run decays one nuclide, at rest and uniformly distributed in one volume, and records the energy
-deposited in the scintillators. It is normally driven by `Monochromatic_protons/run_postactivation.py`
+deposited in the scintillators. It is normally driven by `activation-pipeline/run_postactivation.py`
 (step 4), which writes the macros.
 
 | Command                        | Default | Description                                                    |
@@ -118,7 +118,7 @@ Note: GEANT4 creates only one ground-state level per nuclide, so a few isomers n
 
 ## Activation pipeline
 
-`Monochromatic_protons/` holds the pipeline. `Monochromatic_protons/PIPELINE_GUIDE.md` documents every
+`activation-pipeline/` holds the pipeline. `activation-pipeline/PIPELINE_GUIDE.md` documents every
 step and has a complete example run.
 
 | Step | Script | Output |
@@ -141,12 +141,12 @@ Steps 0–4 do not depend on the orbit: a new orbit or flux model (SPENVIS file)
 The decay data are read from the GEANT4 data libraries: source `geant4.sh` before steps 2–3 (the tools use
 `$G4RADIOACTIVEDATA` or `$GEANT4_DATA_DIR`).
 
-`Monochromatic_protons/geant4_rdm_report/` holds reports on errors found in the GEANT4 radioactive decay
+`activation-pipeline/geant4_rdm_report/` holds reports on errors found in the GEANT4 radioactive decay
 data (report A is GEANT4 bug 2780).
 
 ## Documentation
 
-- `Monochromatic_protons/PIPELINE_GUIDE.md`: the activation pipeline.
+- `activation-pipeline/PIPELINE_GUIDE.md`: the activation pipeline.
 - `doc/` (MkDocs): `cd doc && mkdocs serve`.
 
 ## License

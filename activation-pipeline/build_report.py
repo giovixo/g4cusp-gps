@@ -19,7 +19,7 @@ a new orbit or flux model needs only this script.  Writes <outdir>/report_data.j
 <outdir>/<name>.html (from report_template.html) and <outdir>/<name>.pdf; the step
 6 and 8 outputs go to <outdir>/<label>/<mode>/.
 
-Usage (from Monochromatic_protons/):
+Usage (from activation-pipeline/):
 
     python build_report.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \\
         AP9MEAN.AP9.output_mean_flux_550km_SSO.txt --spectra-dir result_postact --outdir report_run

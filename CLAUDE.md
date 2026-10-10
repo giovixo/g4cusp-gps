@@ -67,13 +67,13 @@ activation background (rates and spectra). It follows the method of Campana et a
   PostAct022; the `G4Ion` column records it). Step 1 only ever produced the `[0.000X]` levels; the other names
   come from the chain builder, which therefore does not fully mimic Geant4 for these daughters.
 - The chain builder deliberately reproduces Geant4's decay-data behaviour, data errors included (see
-  `Monochromatic_protons/geant4_rdm_report/`; report A is Geant4 bug 2780).
+  `activation-pipeline/geant4_rdm_report/`; report A is Geant4 bug 2780).
 - One step-4 production batch (1 in 67) aborted once with a heap error reported in
   `G4TessellatedSolid::InsideVoxels`; it did not reproduce (rerun, AddressSanitizer, ThreadSanitizer, 1.7e8
   concurrent `Inside()` calls). It is **not** a demonstrated G4Voxelizer bug. The driver reruns incomplete
   batches, so outputs stay complete. A work-around based on a wrong diagnosis (`3d7c1c0`) was reverted (`0c532b8`).
 
-## Activation pipeline (`Monochromatic_protons/`)
+## Activation pipeline (`activation-pipeline/`)
 
 `PIPELINE_GUIDE.md` documents every step and has a complete example run.
 
