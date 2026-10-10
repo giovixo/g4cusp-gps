@@ -495,6 +495,27 @@ The energy axis and channel widths are read from `spectra.pkl` (attrs `edges_keV
 | `--window` | `5` keV | ±energy window for DB query |
 | `--cache` | `.gamma_line_cache.pkl` | Cache for DB responses |
 
+
+---
+
+### Report: `build_report.py`
+
+Builds an HTML page and a PDF on a pipeline run: for each event class (default `scat_single`,
+`abs_single`, `compton`) it runs steps 6 and 8 on the step-4 spectra (or reuses them with `--reuse`),
+computes the step-7 histories internally, and collects the first-day rate (60 s steps, belt passages
+marked), the 5-year out-of-belt mean (trailing 30-day window), the out-of-belt spectrum after one year,
+and the most active volumes and nuclides after 1 day, 1 month, 1 year and 5 years with their share of
+each event class.
+
+```bash
+python build_report.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
+    --spectra-dir result_postact --outdir report_run
+```
+
+**Outputs** (in `--outdir`): `cusp_activation_report.html` (from `report_template.html`),
+`cusp_activation_report.pdf`, `report_data.json`, `pair_stats.csv`, and the step 6/8 outputs per mode.
+About 5 minutes in total.
+
 ---
 
 ## Shared geometry parameters

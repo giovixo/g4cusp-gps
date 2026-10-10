@@ -75,6 +75,7 @@ activation background spectrum. It follows the method of Campana et al. 2026 (Ex
 | 6 | `accumulate_spectra.py` | `spectra.pkl`, `count_rate.dat` |
 | 7 | `activation_history.py` | rate history, out-of-belt running average |
 | 8 | `average_spectrum.py` | steady-state out-of-belt spectrum |
+| report | `build_report.py` + `report_template.html` | `report_run/cusp_activation_report.{html,pdf}` |
 
 - A production set (17 energies × 1e8 protons, all cores) takes about 4 h; run it in the background
   under `caffeinate -i`. `0_run.py` skips energies already done with the same nprim unless `--overwrite` is given.
