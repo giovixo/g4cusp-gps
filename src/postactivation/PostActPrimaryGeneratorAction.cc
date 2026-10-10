@@ -7,7 +7,6 @@
 #include "G4IonTable.hh"
 #include "G4LogicalVolume.hh"
 #include "G4Navigator.hh"
-#include "G4NuclideTable.hh"
 #include "G4ParticleGun.hh"
 #include "G4Point3D.hh"
 #include "G4PhysicalVolumeStore.hh"
@@ -22,7 +21,6 @@ namespace
 {
     const G4int kMaxTries = 1000000;            // maximum tries to find a point inside the solid
     const G4int kTestPoints = 10000;            // points used to measure the acceptance of a new volume
-    const G4double kEnergyTolerance = 0.01*keV; // max difference between requested and actual level energy
 }
 
 
@@ -93,44 +91,14 @@ void PostActPrimaryGeneratorAction::UpdateIon()
                                                            : G4Ions::FloatLevelBase(req.flb);
     G4ParticleDefinition* ion = G4IonTable::GetIonTable()->GetIon(req.Z, req.A, req.E, flb);
 
-    // Never decay a nuclide different from the requested one
-    G4ExceptionDescription msg;
-    msg << "Isotope " << name << ": ";
-    if (ion == nullptr)
+    // Same ion as created on the master by /postact/isotope (see PostActConfig::SetIsotope)
+    if (ion == nullptr || ion->GetParticleName() != PostActConfig::G4IonName())
     {
-        msg << "G4IonTable::GetIon returned no ion";
-        G4Exception("PostActPrimaryGeneratorAction::UpdateIon", "PostAct012", FatalException, msg);
-        return;
-    }
-    const auto* ions = dynamic_cast<const G4Ions*>(ion);
-    if (ions == nullptr)
-    {
-        msg << "the particle " << ion->GetParticleName() << " is not an ion";
-        G4Exception("PostActPrimaryGeneratorAction::UpdateIon", "PostAct012", FatalException, msg);
-        return;
-    }
-    if (std::abs(ions->GetExcitationEnergy() - req.E) > kEnergyTolerance)
-    {
-        msg << "requested excitation energy " << req.E/keV << " keV, but Geant4 gave "
-            << ion->GetParticleName() << " with " << ions->GetExcitationEnergy()/keV << " keV";
+        G4ExceptionDescription msg;
+        msg << "Isotope " << name << ": the worker got "
+            << (ion == nullptr ? G4String("no ion") : ion->GetParticleName())
+            << " instead of " << PostActConfig::G4IonName();
         G4Exception("PostActPrimaryGeneratorAction::UpdateIon", "PostAct013", FatalException, msg);
-        return;
-    }
-    if (ions->GetFloatLevelBase() != flb)
-    {
-        msg << "requested floating level '" << (req.flb == '\0' ? '-' : req.flb) << "', but Geant4 gave "
-            << ion->GetParticleName() << " with level base " << G4int(ions->GetFloatLevelBase());
-        G4Exception("PostActPrimaryGeneratorAction::UpdateIon", "PostAct013", FatalException, msg);
-        return;
-    }
-
-    // GetIon creates any excitation energy on request: the level must exist in the nuclide table
-    if (req.E > 0. &&
-        G4NuclideTable::GetNuclideTable()->GetIsotope(req.Z, req.A, req.E, flb) == nullptr)
-    {
-        msg << "no level at " << req.E/keV << " keV in the Geant4 nuclide table (the ion "
-            << ion->GetParticleName() << " would be an artificial one)";
-        G4Exception("PostActPrimaryGeneratorAction::UpdateIon", "PostAct019", FatalException, msg);
         return;
     }
 

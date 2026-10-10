@@ -11,6 +11,11 @@ class G4GenericMessenger;
 // read-only during a run. One run = one (volume, isotope) pair.
 //
 //   /postact/isotope   Ta178[0.000X]     nuclide to decay (step-3 naming: Sym A [E keV + floating letter])
+//                                        The ion is created on the master when the command is given.
+//                                        At E = 0, Geant4 creates only one level per nuclide (the first
+//                                        one requested, or its preferred floating level): if it differs
+//                                        from the requested one, the nuclide decays as that level, as a
+//                                        daughter would in Geant4, and a warning is printed.
 //   /postact/volume    PV-Absorber_006   physical volume where the nuclides are placed
 //   /postact/output    postact           prefix of the output files
 //   /postact/minHalfLife 1 us            daughters with T1/2 >= this are killed before decaying
@@ -36,6 +41,7 @@ public:
 
     static const G4String& IsotopeName()  { return fIsotopeName; }
     static const PostActIon& Ion()        { return fIon; }
+    static const G4String& G4IonName()    { return fG4IonName; }   // name of the Geant4 ion that decays
     static const G4String& VolumeName()   { return fVolumeName; }
     static const G4String& OutputPrefix() { return fOutputPrefix; }
     static G4double MinHalfLife()         { return fMinHalfLife; }
@@ -47,6 +53,7 @@ private:
 
     static G4String   fIsotopeName;
     static PostActIon fIon;
+    static G4String   fG4IonName;
     static G4String   fVolumeName;
     static G4String   fOutputPrefix;
     static G4double   fMinHalfLife;

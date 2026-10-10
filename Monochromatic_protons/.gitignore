@@ -12,5 +12,6 @@ DecayChains/
 *.log
 output_*/
 result_spectra/
+result_postact*/
 *.dat
 *.pdf

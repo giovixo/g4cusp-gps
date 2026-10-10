@@ -31,7 +31,12 @@ activation background spectrum. It follows the method of Campana et al. 2026 (Ex
   `/postact/volume`, `/postact/output`, `/postact/minHalfLife` (1 us, = step 2 `min_halflife`),
   `/postact/timeWindow` (10 us). Ion at rest, uniform in the volume; time 0 = the decay; daughters with
   T½ ≥ minHalfLife are killed when they stop. Output: `<prefix>_t<N>.csv` (`RunID,EventID,ScintID,Edep_keV,t_ns`,
-  ScintID 0–63 = PV-Scatterer_001–064, 64–95 = PV-Absorber_001–032) and `<prefix>_runs.csv`; files are appended.
+  ScintID 0–63 = PV-Scatterer_001–064, 64–95 = PV-Absorber_001–032) and `<prefix>_runs.csv`. The first run of a
+  process with a prefix deletes that prefix's old files, so a rerun replaces them; runs within a process append.
+- Geant4 creates only **one E = 0 level per nuclide** (`G4IonTable::FindIon` falls back to any E = 0 ion):
+  `Ta178`, `Ta178[0.000Y]` and `Pr134` decay as `Ta178[0.000X]`/`Pr134[0.000X]` (warning PostAct022; the runs
+  file has a `G4Ion` column with the level that decayed). Step 1 only ever produced the `[0.000X]` levels; the
+  other names come from the chain builder, which therefore does not fully mimic Geant4 for these daughters.
   The RDM very-long-decay threshold is set to 1e60 y in `main` (default 1 y would stop Na22 decays).
 - Sources are split into `src/` + `include/` subdirectories: `common/` (`DetectorConstruction`, `PhysicsList`,
   built as the static library `cusp-common`), `activation/` and `postactivation/` (classes prefixed `PostAct`).
