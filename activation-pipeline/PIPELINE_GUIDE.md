@@ -4,12 +4,14 @@
 
 This pipeline estimates the activation-induced detector background in a space instrument after irradiation by trapped protons. It takes as input the raw output of Geant4 Monte Carlo simulations (activation score files for a set of monochromatic proton energies) and a SPENVIS orbital proton flux file, and produces time-resolved background spectra and count rates.
 
+All the scripts live in `activation-pipeline/` and are run from there; the default paths (`output/`, `result_postact/`, `../Debug/…`, `../gdml-mass-model`) are relative to it. Source `geant4.sh` before running (the decay data are found through `$GEANT4_DATA_DIR`).
+
 ---
 
 ## Pipeline architecture
 
 ```
-0. Geant4 Activation run	                                                 SPENVIS flux file
+0. Geant4 Activation run                                                    SPENVIS flux file
     0_run.py                                                                         │
     Geant4 score CSVs                                                                │
     (one per proton energy)                                                          │
@@ -32,13 +34,18 @@ This pipeline estimates the activation-induced detector background in a space in
         |                                           |                                │
         |                                           ▼                                │
         |                              4. Geant4 PostActivation run                  │
-        |                                  (run_postactivation.py)                    │
+        |                                  (run_postactivation.py)                   │
+        |                                  → result_postact/ (hits per decay)        │
+        |                                           |                                │
+        |                                           ▼                                │
+        |                              4b. build_spectra.py (event selection)        │
+        |                                  → spectra_<mode>.npz                      │
         |                                           |                                │
         ▼                                           ▼                                │
- 6. accumulate_spectra.py  ←── spectra_<mode>.npz (build_spectra.py)                 │
-                           ←── or result_spectra/{vol}_{iso}_S-mode.dat (old)         │
+ 6. accumulate_spectra.py  ←── spectra_<mode>.npz                                    │
+                           ←── or result_spectra/{vol}_{iso}_S-mode.dat (old)        │
                            ←── 5. SPENVIS parser  ←──--------------------------------┘
-						          spenvis_parser.py
+                                  spenvis_parser.py
     → spectra.pkl
     → count_rate.dat
         │
@@ -47,6 +54,8 @@ This pipeline estimates the activation-induced detector background in a space in
         │
         └──▶ 8. average_spectrum.py
                  → steady-state out-of-belt spectrum with line IDs
+
+ report: build_report.py runs steps 6–8 for each orbit and event class → HTML + PDF
 ```
 
 ---
@@ -218,7 +227,7 @@ A_{E,v,i}(t) = Σ_r eff_{E,v,r} · a_{r,i}(t)
 
 The activity of a nuclide is assigned to the volume where its root was produced. A produced nuclide without a chain file only contributes its own activity λe^{−λt}, and is listed in a warning. This is the case for nuclides with no decay data, such as Ta178[0.000X]. With `--errors`, the Poisson uncertainty of the yields is propagated.
 
-For a CUSP run (17 energies, 37,624 yield entries, 758 produced nuclides, 201 times) this takes about 11 s.
+For the CUSP production run (17 energies, 89,027 yield entries, 1189 produced nuclides, 201 times) this takes about 21 s and gives 99,661 activity entries and 22,787 active (volume, isotope) pairs.
 
 **Inputs:** `results.pkl`, `DecayChains/*.dat`\
 **Outputs:** `activities.pkl`, `activities_err.pkl` (with `--errors`), `unit_activities.pkl`, `active_isotopes.pkl`
@@ -263,13 +272,19 @@ Runs the Geant4 program `cusp-postactivation`, which decays each active nuclide 
 - **Batches:** pairs in decreasing weight order, at most `--batch-size` pairs and `--batch-decays` decays per Geant4 process (`batch_NNNN.mac`, run with `-t` threads in a work directory that links the GDML files of the mass model, like `0_run.py`). A batch is complete when its `_runs.csv` lists all its pairs with the right number of decays and its macro is unchanged. Complete batches are skipped; an incomplete one is deleted and rerun (not with `--no-rerun`).
 
 **Inputs:** `activities.pkl` and `active_isotopes.pkl` (same directory), SPENVIS file\
-**Outputs** (in `--outdir`, default `result_postact/`): `allocation.csv` (`Volume, Isotope, Weight_Bq, NDecays, Batch`), `batch_NNNN.{mac,log}`, `batch_NNNN_t<thread>.csv` (`RunID,EventID,ScintID,Edep_keV,t_ns`, one row per scintillator hit, decays with no deposit write nothing), `batch_NNNN_runs.csv` (`RunID,Volume,Isotope,NDecays`), `postact_info.json` (options, git commit, executable, Geant4 data sets, batch timings)
+**Outputs** (in `--outdir`, default `result_postact/`): `allocation.csv` (`Volume, Isotope, Weight_Bq, NDecays, Batch`), `batch_NNNN.{mac,log}`, `batch_NNNN_t<thread>.csv` (`RunID,EventID,ScintID,Edep_keV,t_ns`, one row per scintillator hit, decays with no deposit write nothing), `batch_NNNN_runs.csv` (`RunID,Volume,Isotope,NDecays,G4Ion`; `G4Ion` is the Geant4 ion actually decayed, which differs for the few E = 0 isomers that Geant4 cannot create, e.g. `Ta178` → `Ta178[0.000X]`), `postact_info.json` (options, git commit, executable, Geant4 data sets, batch timings)
 
 ```bash
 python run_postactivation.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt --dry-run   # allocation and macros only
 python run_postactivation.py output/activities.pkl AP8MIN....txt --test 9                                # timing on 9 pairs
 caffeinate -i python run_postactivation.py output/activities.pkl AP8MIN....txt > postact.log 2>&1 &      # production
+
+# the CUSP production (2026-10-10): 3e8 decays, 67 batches, about 2 h on 11 cores
+caffeinate -i python run_postactivation.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
+    --budget 3e8 --nmax 1000000 --batch-size 2000 --batch-decays 5e6 > production_postact.log 2>&1 &
 ```
+
+The macros hold the absolute path of the output files (`/postact/output`), and a batch counts as complete only if its macro is unchanged. If the pipeline directory is moved or renamed, rewrite that path in `result_postact/batch_*.mac`, or the next run would redo every batch.
 
 **Key arguments:**
 
@@ -291,6 +306,56 @@ caffeinate -i python run_postactivation.py output/activities.pkl AP8MIN....txt >
 from run_postactivation import load_events
 hits, pairs = load_events("result_postact")   # hits: one row per scintillator hit, with Volume, Isotope, DecayID
 pairs                                         # NDecays per (Volume, Isotope): rate per decay = hits / NDecays
+```
+
+---
+
+### 4b. `build_spectra.py`
+
+Turns the step-4 hit lists into a spectrum per decay of each (volume, isotope) pair, one file per event class (mode), in the format of `pair_spectra.py`. **The event selection is provisional:** the CUSP thresholds, coincidence window and energy resolution are not decided yet, and the defaults are placeholders.
+
+Selection of the events of each decay:
+1. Optional Gaussian smearing of each deposit (off by default): FWHM(E) = f·√(E·e_ref), f = `--fwhm-scat`/`--fwhm-abs` at `--e-ref`.
+2. Threshold: a scintillator triggers if its deposit is ≥ `--thr-scat` (plastic scatterers, ScintID 0–63) or `--thr-abs` (GAGG absorbers, 64–95). Deposits below threshold are ignored.
+3. Coincidence window: triggered scintillators later than `--window` after the first one are dropped (not counted as a separate event).
+4. Modes, with n_s, n_a the triggered scatterers and absorbers:
+
+| Mode | Condition | Energy |
+| --- | --- | --- |
+| `scat_single` | n_s = 1, n_a = 0 | the scatterer deposit |
+| `abs_single` | n_s = 0, n_a = 1 | the absorber deposit |
+| `compton` | n_s = 1, n_a = 1 | sum of the two (no geometric cuts) |
+| `any` | n_s + n_a ≥ 1 | sum of all triggered deposits |
+
+5. Binning: channels of `--binwidth` from 0 to `--emax`; events above are dropped and counted in the metadata.
+
+No light yield or quenching is modelled. Rebuilding all modes takes about 20 s.
+
+**Input:** `result_postact/` (step 4)\
+**Output:** `spectra_<mode>.npz` in `--outdir` (default: the input directory): pair names, simulated decays, channel edges, the counts per channel as a sparse matrix, and the selection parameters in `meta`. The spectrum of a pair is counts / ndecays / channel width, in counts/keV/decay.
+
+```bash
+python build_spectra.py result_postact
+python build_spectra.py result_postact --modes compton any --thr-abs 30 --window 200
+python build_spectra.py result_postact --fwhm-abs 0.07 --jobs 4
+```
+
+| Argument | Default | Description |
+| --- | --- | --- |
+| `--modes` | all four | Event classes to write |
+| `--thr-scat`, `--thr-abs` | `5`, `20` keV | Thresholds (provisional) |
+| `--window` | `500` ns | Coincidence window (provisional) |
+| `--fwhm-scat`, `--fwhm-abs`, `--e-ref` | `0`, `0`, `662` keV | Relative FWHM at `e_ref` (0 = no smearing) |
+| `--emax`, `--binwidth` | `2000`, `1` keV | Energy axis |
+| `--seed` | `12345` | Seed of the smearing |
+| `--jobs` | all cores | Batches processed in parallel |
+
+```python
+from pair_spectra import load_pair_spectra
+lib = load_pair_spectra("result_postact/spectra_compton.npz")
+lib.centres                                   # channel centres [keV]
+lib.spectrum("PV-Absorber_006", "Na22")       # counts/keV/decay, or None if absent
+lib.rate_per_decay("PV-Absorber_006", "Na22") # selected events per decay
 ```
 
 ---
@@ -366,8 +431,8 @@ Computes the background spectrum and count rate at each decay time after **one S
 
 ```bash
 python accumulate_spectra.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
-    --spectra-dir result_spectra/ \
-    --outdir output/ \
+    --spectra-file result_postact/spectra_abs_single.npz \
+    --outdir output_abs_single/ \
     --save-plot count_rate.pdf \
     --save-spectra spectra.pdf
 
@@ -460,10 +525,10 @@ Line identification pipeline for each peak:
 **Outputs:** average spectrum ASCII, publication-quality plot
 
 ```bash
-python average_spectrum.py output/spectra.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
+python average_spectrum.py output_abs_single/spectra.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
     --duration 3y \
     --activities output/activities.pkl \
-    --spectra-dir result_spectra/ \
+    --spectra-file result_postact/spectra_abs_single.npz \
     --n-label 6 \
     --window 5 \
     --save-plot avg_spectrum.pdf \
@@ -538,8 +603,9 @@ The source geometry and the simulation energies are recorded once, by `0_run.py`
 | --- | --- | --- | --- |
 | `results.pkl` | pandas pickle | `activation_parser` | `build_decay_chains`, `compute_activities` |
 | `DecayChains/*.dat` | ASCII | `decay_chain_builder` / `build_decay_chains` | `compute_activities` |
-| `activities.pkl` | pandas pickle | `compute_activities` | `accumulate_spectra`, `average_spectrum` |
-| `active_isotopes.pkl` | Python pickle (dict) | `compute_activities` | (reference) |
+| `activities.pkl` | pandas pickle | `compute_activities` | `run_postactivation`, `accumulate_spectra`, `average_spectrum`, `build_report` |
+| `active_isotopes.pkl` | Python pickle (dict) | `compute_activities` | `run_postactivation` |
+| `result_postact/batch_*` | CSV hit lists and run lists | `run_postactivation` (`cusp-postactivation`) | `build_spectra`, `run_postactivation.load_events` |
 | `spectra.pkl` | pandas pickle | `accumulate_spectra` | `average_spectrum` |
 | `count_rate.dat` | 2-col ASCII | `accumulate_spectra` | `activation_history`, `average_spectrum` |
 | `spectra_<mode>.npz` | npz (sparse counts per pair; `pair_spectra.py`) | `build_spectra` | `accumulate_spectra`, `average_spectrum` |
@@ -565,31 +631,40 @@ python build_decay_chains.py results.pkl --outdir DecayChains/
 # 3. Solve radioactive decay equations
 python compute_activities.py results.pkl --chains DecayChains/ --outdir output/ --errors
 
-# 4. Geant4 post-activation run (decays per pair from the out-of-belt activity)
-#    -> result_postact/batch_*_t*.csv, batch_*_runs.csv
+# 4. Geant4 post-activation run (decays per pair from the out-of-belt activity), ~2 h
+caffeinate -i python run_postactivation.py output/activities.pkl $SPENVIS \
+    --budget 3e8 --nmax 1000000 --batch-size 2000 --batch-decays 5e6 > production_postact.log 2>&1
+
+# 4b. Event selection -> result_postact/spectra_<mode>.npz
+python build_spectra.py result_postact
 
 # 5. Inspect the SPENVIS orbital flux (optional)
 python spenvis_parser.py $SPENVIS --R 13 --thetamax 90
 
-# 6. Spectra and count rate after one step at the mean flux
-#    (--spectra-file result_postact/spectra_<mode>.npz [--emin 20 --emax 100] replaces --spectra-dir)
+# 6. Spectra and count rate after one step at the mean flux, for one event class
+#    (add --emin 20 --emax 100 for a band)
+MODE=compton
 python accumulate_spectra.py output/activities.pkl $SPENVIS \
-    --spectra-dir result_spectra/ --outdir output/
+    --spectra-file result_postact/spectra_$MODE.npz --outdir output_$MODE/
 
 # 7a. Rate history over one SPENVIS period
-python activation_history.py output/count_rate.dat $SPENVIS \
+python activation_history.py output_$MODE/count_rate.dat $SPENVIS \
     --save-plot history_orbit.pdf
 
 # 7b. Long-term (3-year) history, out-of-belt running average
-python activation_history.py output/count_rate.dat $SPENVIS \
+python activation_history.py output_$MODE/count_rate.dat $SPENVIS \
     --duration 3y --avg-window 1w --save-plot history_3yr.pdf
 
 # 8. Steady-state out-of-belt spectrum with line identification
-python average_spectrum.py output/spectra.pkl $SPENVIS --duration 3y \
+python average_spectrum.py output_$MODE/spectra.pkl $SPENVIS --duration 3y \
     --activities output/activities.pkl \
-    --spectra-dir result_spectra/ \
+    --spectra-file result_postact/spectra_$MODE.npz \
     --save-plot avg_spectrum.pdf \
     --save-dat avg_spectrum.dat
+
+# Report: steps 6-8 for every orbit and event class, ~5 min per orbit
+python build_report.py output/activities.pkl $SPENVIS AP9MEAN.AP9.output_mean_flux_550km_SSO.txt \
+    --labels AP8MIN AP9 --spectra-dir result_postact --outdir report_run
 ```
 
 If the SPENVIS file tabulates the flux only up to an energy below the highest simulation energy (AP8: 400 MeV), step 6 clips the bands there and warns: protons above it are ignored.
