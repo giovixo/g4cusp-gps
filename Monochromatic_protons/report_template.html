@@ -1,3 +1,6 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CUSP Activation Background</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
@@ -7,6 +10,7 @@
   --bg: #f7f8fa; --surface: #ffffff; --fg: #15181d; --fg-2: #4a515c; --muted: #6b7380;
   --rule: #dfe3e9; --grid: #e8ebf0; --accent: #1d4f91; --belt: rgba(122, 132, 150, 0.16);
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  --o1: #3b4250; --o2: #8a4fd8; --o3: #c2185b;
   --font-display: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
   --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -14,11 +18,13 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #111317; --surface: #191c21; --fg: #eceef1; --fg-2: #b9c0ca; --muted: #8f97a3;
   --rule: #2b3038; --grid: #252a31; --accent: #8db4ec; --belt: rgba(160, 170, 190, 0.13);
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; color-scheme: dark } }
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --o1: #c9ced6; --o2: #b48cf0; --o3: #f06292; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #111317; --surface: #191c21; --fg: #eceef1; --fg-2: #b9c0ca; --muted: #8f97a3;
   --rule: #2b3038; --grid: #252a31; --accent: #8db4ec; --belt: rgba(160, 170, 190, 0.13);
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; color-scheme: dark }
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --o1: #c9ced6; --o2: #b48cf0; --o3: #f06292; color-scheme: dark }
 * { box-sizing: border-box }
 body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--font-body); }
 .wrap { max-width: 1060px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 72px; }
@@ -30,15 +36,21 @@ h3 { font: 600 16px/1.3 var(--font-body); margin: 26px 0 6px; }
 p, li { max-width: 72ch; color: var(--fg-2); }
 p.lead { font-size: 16.5px; color: var(--fg); }
 code, .mono { font-family: var(--font-mono); font-size: .9em; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 22px 0 6px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 22px 0 6px; }
 .tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0; }
 .tile .k { font: 500 12px/1.3 var(--font-mono); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
-.tile .v { font: 600 28px/1.15 var(--font-display); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.tile .row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.tile .ol { font: 500 12px var(--font-mono); color: var(--muted); }
+.tile .v { font: 600 24px/1.15 var(--font-display); font-variant-numeric: tabular-nums; }
+.tile .row:first-of-type .v { font-size: 28px; }
 .tile .u { font: 400 13px var(--font-body); color: var(--muted); }
 .sw { width: 18px; height: 3px; border-radius: 2px; display: inline-block; flex: none; }
-.sw.s1 { background: var(--s1) } .sw.s2 { background: var(--s2) } .sw.s3 { background: repeating-linear-gradient(90deg, var(--s3) 0 6px, transparent 6px 9px) }
+.sw.s1 { background: var(--s1) } .sw.s2 { background: var(--s2) } .sw.s3 { background: var(--s3) }
+.ls { width: 26px; height: 0; border-top: 2px solid var(--fg-2); display: inline-block; flex: none; }
+.ls.d1 { border-top-style: dashed } .ls.d2 { border-top-style: dotted }
 figure { margin: 18px 0 8px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 16px 12px; }
 .chart { position: relative; height: 380px; }
+.chart.short { height: 220px; }
 figcaption { font-size: 13.5px; color: var(--muted); margin-top: 10px; max-width: 90ch; }
 .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13.5px; color: var(--fg-2); margin: 0 0 10px; }
 .legend span { display: inline-flex; align-items: center; gap: 8px; }
@@ -49,6 +61,7 @@ th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--rul
 th { font: 500 12px/1.3 var(--font-mono); color: var(--muted); letter-spacing: .03em; text-transform: uppercase; }
 td.n, th.n { text-align: right; }
 td.vol { font-family: var(--font-mono); font-size: 12.5px; }
+tr.ratio td { color: var(--accent); font-weight: 500; }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 4px; }
 .tabs button { font: 500 13px var(--font-body); color: var(--fg-2); background: transparent; border: 1px solid var(--rule); border-radius: 999px; padding: 5px 14px; cursor: pointer; }
 .tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
@@ -64,42 +77,58 @@ ul { padding-left: 20px; }
 <header>
   <div class="eyebrow" id="eyebrow">CUSP · activation pipeline run</div>
   <h1>Activation-induced background of the CUSP polarimeter</h1>
-  <p class="lead">Background from the decay of nuclides produced by trapped protons in the CUSP mass model, for the orbit of <span id="orbitName">the SPENVIS file</span>, computed with the three-step method of Campana et al. (2026). Rates are averaged over the out-of-belt part of the orbit unless stated otherwise.</p>
+  <p class="lead">Background from the decay of nuclides produced by trapped protons in the CUSP mass model, for <span id="orbitName">the SPENVIS orbit</span>, computed with the three-step method of Campana et al. (2026). The simulation is the same for every orbit; only the proton flux changes. Rates are averaged over the out-of-belt part of the orbit unless stated otherwise.</p>
   <div class="tiles" id="tiles"></div>
-  <p style="font-size:13px;color:var(--muted)">Out-of-belt mean rate after one year in orbit, by event class. The event selection is provisional (see Method).</p>
+  <p style="font-size:13px;color:var(--muted)">Out-of-belt mean rate after one year in orbit, by event class and orbit. The event selection is provisional (see Method).</p>
 </header>
 
 <h2>Run summary</h2>
 <div class="tbl" id="runTable"></div>
 
+<h2>Proton flux of the orbits</h2>
+<p id="fluxText">Orbit-averaged differential spectrum of the trapped protons, from the integral flux F(&gt;E) of each SPENVIS file. The shaded range is the one covered by the simulation energies.</p>
+<figure>
+  <div class="legend" id="legFlux"></div>
+  <div class="chart"><canvas id="cFlux" aria-label="Orbit-averaged differential proton flux of each orbit, logarithmic axes"></canvas></div>
+  <div class="chart short" id="ratioBox"><canvas id="cRatio" aria-label="Ratio of the differential fluxes to the reference orbit"></canvas></div>
+  <figcaption id="fluxCap">Differential flux in p/cm²/s/MeV at the geometric centre of each pair of SPENVIS levels (top), and its ratio to the reference orbit (bottom).</figcaption>
+</figure>
+<div class="grid2">
+  <div><h3>Integral flux F(&gt;E) [p/cm²/s]</h3><div class="tbl" id="tFlux"></div></div>
+  <div><h3>Primaries per 60 s step</h3><div class="tbl" id="tPrim"></div></div>
+</div>
+
 <h2>Background during the first day</h2>
 <p>Instantaneous activation-induced rate at 60 s resolution from the start of the mission (no prior activation). Each passage through the South Atlantic Anomaly (shaded) builds up short-lived activity, which decays within tens of minutes; the baseline between passages rises slowly as longer-lived nuclides accumulate. The prompt background during the passages is not part of this calculation.</p>
+<div class="tabs" role="tablist" id="tabsDay"></div>
 <figure>
   <div class="legend"><span><i class="sw s1"></i>Plastic singles</span><span><i class="sw s2"></i>GAGG singles</span><span><i class="sw s3"></i>Compton coincidences</span><span><i class="beltkey"></i>In radiation belt (SAA)</span></div>
   <div class="chart"><canvas id="cDay" aria-label="Count rate during the first day, three event classes, logarithmic scale"></canvas></div>
-  <figcaption>Rate in counts/s (logarithmic) versus hours since the start of the mission. The highest peaks follow the deepest belt passages.</figcaption>
+  <figcaption>Rate in counts/s (logarithmic) versus hours since the start of the mission, for the selected orbit. The highest peaks follow the deepest belt passages.</figcaption>
 </figure>
 
 <h2>Long-term out-of-belt background, first 5 years</h2>
 <p>Out-of-belt mean rate over a trailing 30-day window, from the 60 s history of the first 5 years. The rise comes from nuclides with half-lives of months to years (Na22, Gd153, Gd151 and others), still far from saturation after 5 years for the longest-lived ones.</p>
 <figure>
-  <div class="legend"><span><i class="sw s1"></i>Plastic singles</span><span><i class="sw s2"></i>GAGG singles</span><span><i class="sw s3"></i>Compton coincidences</span></div>
-  <div class="chart"><canvas id="cLong" aria-label="Out-of-belt 30-day mean rate over five years, three event classes"></canvas></div>
-  <figcaption>Rate in counts/s (logarithmic) versus days since the start of the mission. The first 29 points average over the days elapsed so far.</figcaption>
+  <div class="legend" id="legLong"></div>
+  <div class="chart"><canvas id="cLong" aria-label="Out-of-belt 30-day mean rate over five years, three event classes, each orbit"></canvas></div>
+  <figcaption>Rate in counts/s (logarithmic) versus days since the start of the mission; colour: event class, line style: orbit. The first 29 points average over the days elapsed so far.</figcaption>
 </figure>
 <div class="tbl" id="ratesTable"></div>
 
 <h2>Background spectrum after one year</h2>
 <p>Out-of-belt mean spectrum after one year in orbit, shown in <span id="binw">4</span> keV bins. The 511 keV annihilation line dominates all three classes; GAGG singles also show the activation lines of the crystal itself below 300 keV, Na22 at 1274.5 keV and Na24 at 1368.6 keV. The narrow feature at 1732 keV in the plastic is the double-escape peak of the 2754 keV Na24 gamma.</p>
+<div class="tabs" role="tablist" id="tabsSpec"></div>
 <figure>
-  <div class="legend"><span><i class="sw s1"></i>Plastic singles</span><span><i class="sw s2"></i>GAGG singles</span><span><i class="sw s3"></i>Compton coincidences (summed energy)</span></div>
-  <div class="chart"><canvas id="cSpec" aria-label="Background spectra after one year, three event classes"></canvas></div>
-  <figcaption>Rate in counts/s/keV (logarithmic) versus deposited energy. No energy resolution or light-yield model is applied; the energy is the true deposit.</figcaption>
+  <div class="legend" id="legSpec"></div>
+  <div class="chart"><canvas id="cSpec" aria-label="Background spectrum after one year of the selected event class, each orbit"></canvas></div>
+  <figcaption>Rate in counts/s/keV (logarithmic) versus deposited energy (Compton: summed energy). No energy resolution or light-yield model is applied; the energy is the true deposit.</figcaption>
 </figure>
 <div class="tbl" id="bandTable"></div>
 
 <h2>Where the activity is</h2>
-<p>Out-of-belt mean activity of each volume and nuclide after a given time in orbit. Short-lived positron emitters produced in organic and light materials (F18, C11) lead at first; long-lived nuclides take over with time.</p>
+<p>Out-of-belt mean activity of each volume and nuclide after a given time in orbit. Short-lived positron emitters produced in organic and light materials (F18, C11) lead at first; long-lived nuclides take over with time. The orbit selector applies to all the tables below.</p>
+<div class="tabs" role="tablist" id="tabsOrbit"></div>
 <div class="tabs" role="tablist" id="tabsAct"></div>
 <div class="grid2">
   <div><h3>Most active volumes</h3><div class="tbl" id="tVol"></div></div>
@@ -122,10 +151,10 @@ ul { padding-left: 20px; }
 <ul>
   <li id="selItem"></li>
   <li><b>Detector response</b>: true energy deposits; no resolution, light yield or quenching. Electronics dead time and pile-up are not modelled.</li>
-  <li><b>Orbit</b>: the SPENVIS orbit repeats its period. The AP8MIN file of this run stops at 400 MeV, so simulation energies above it receive no protons.</li>
-  <li><b>Coverage</b>: the (volume, nuclide) pairs below the step-3 activity threshold (about 0.9% of the out-of-belt activity in this run) were not simulated in step 4; rates are low by about that fraction.</li>
+  <li id="orbitItem"></li>
+  <li><b>Coverage</b>: the (volume, nuclide) pairs below the step-3 activity threshold (about 0.9% of the out-of-belt activity) were not simulated in step 4; rates are low by about that fraction.</li>
   <li><b>Geant4 data</b>: decays follow Geant4's own decay data, including the known RadioactiveDecay6.1.2 errors (Geant4 bug 2780 and related reports). Neutron activation changes the yields by less than 3 × 10<sup>-5</sup>.</li>
-  <li><b>Statistics</b>: the statistical error of the total rates is below 10<sup>-3</sup> (relative); single weak pairs are noisier.</li>
+  <li><b>Statistics</b>: the statistical error of the total rates is below 10<sup>-3</sup> (relative); single weak pairs are noisier. All orbits use the same step-4 spectra, so the ratios between orbits carry almost no statistical error.</li>
 </ul>
 <p style="font-size:13px;color:var(--muted)">Code: branch <code>activation</code> of g4cusp-gps (commit <code id="commit"></code>), Geant4 11.4.1.</p>
 </div>
@@ -136,71 +165,121 @@ const D = __DATA__;
 const NAMES = { scat_single: "Plastic singles", abs_single: "GAGG singles", compton: "Compton coincidences" };
 const S = D.summary;
 const MODES = Object.keys(S.modes);
+const OR = D.orbits, LAB = OR.map(o => o.label), REF = LAB[0];
+const DASH = [[], [7, 4], [2, 3]];
+const LSCLS = ["", "d1", "d2"];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 document.getElementById("eyebrow").textContent = `CUSP · activation pipeline run · ${S.date}`;
-document.getElementById("orbitName").textContent = S.spenvis;
+document.getElementById("orbitName").textContent = OR.length > 1
+  ? `${OR.length} orbit models (${S.orbits.map(o => `${o.label}: ${o.spenvis}`).join("; ")})`
+  : `the orbit of ${S.orbits[0].spenvis}`;
 document.getElementById("commit").textContent = S.commit;
-document.getElementById("binw").textContent = D.spec.width_keV;
+document.getElementById("binw").textContent = OR[0].spec.width_keV;
 const sel = S.selection;
 document.getElementById("selItem").innerHTML = `<b>Event classes</b> (${sel.selection}): a scintillator triggers above ${sel.thr_scat} keV (plastic) or ${sel.thr_abs} keV (GAGG); deposits more than ${sel.window} ns after the first trigger are dropped. <i>Plastic singles</i>: one plastic bar, no GAGG. <i>GAGG singles</i>: one GAGG crystal, no plastic. <i>Compton coincidences</i>: exactly one plastic bar and one GAGG crystal, energy summed; no geometric or kinematic cuts yet.`;
+document.getElementById("orbitItem").innerHTML = `<b>Orbit</b>: ${esc(S.orbit_note.replace(/^Orbit: /, ""))}`;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const fmt = (x, p = 3) => (x === 0 ? "0" : Math.abs(x) >= 1e4 || Math.abs(x) < 1e-3 ? x.toExponential(p - 1) : Number(x.toPrecision(p)).toString());
+const fmt = (x, p = 3) => (x === null || x === undefined ? "–" : x === 0 ? "0" : Math.abs(x) >= 1e4 || Math.abs(x) < 1e-3 ? x.toExponential(p - 1) : Number(x.toPrecision(p)).toString());
+const ratio = (a, b) => (a === null || a === undefined || !b ? "–" : (a / b).toFixed(3));
 
-// tiles
-var r1 = D.tables.rates["1 year"];
+// tiles: one per event class, one line per orbit
 document.getElementById("tiles").innerHTML =
-  MODES.map((m, i) => `<div class="tile"><div class="k"><i class="sw s${i+1}"></i>${NAMES[m]}</div><div class="v">${fmt(r1[m])} <span class="u">counts/s</span></div></div>`).join("") +
-  `<div class="tile"><div class="k">Activity of the payload</div><div class="v">${fmt(r1.activity_Bq)} <span class="u">Bq</span></div></div>`;
+  MODES.map((m, i) => `<div class="tile"><div class="k"><i class="sw s${i+1}"></i>${NAMES[m]}</div>${
+    OR.map(o => `<div class="row"><span class="ol">${esc(o.label)}</span><span class="v">${fmt(o.tables.rates["1 year"][m])} <span class="u">counts/s</span></span></div>`).join("")}</div>`).join("") +
+  `<div class="tile"><div class="k">Activity of the payload</div>${
+    OR.map(o => `<div class="row"><span class="ol">${esc(o.label)}</span><span class="v">${fmt(o.tables.rates["1 year"].activity_Bq)} <span class="u">Bq</span></span></div>`).join("")}</div>`;
 
 // tables
-var table = (head, rows, numCols) => `<table><thead><tr>${head.map((h, i) => `<th class="${numCols.includes(i) ? "n" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${
-  rows.map(r => `<tr>${r.map((c, i) => `<td class="${numCols.includes(i) ? "n" : ""}${i === 0 && String(c).startsWith("PV-") ? " vol" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-const times = Object.keys(D.tables.rates);
+var table = (head, rows, numCols, ratioRows = []) => `<table><thead><tr>${head.map((h, i) => `<th class="${numCols.includes(i) ? "n" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${
+  rows.map((r, k) => `<tr class="${ratioRows.includes(k) ? "ratio" : ""}">${r.map((c, i) => `<td class="${numCols.includes(i) ? "n" : ""}${i === 0 && String(c).startsWith("PV-") ? " vol" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+const times = Object.keys(OR[0].tables.rates);
 const e0 = S.energies_MeV || [0, 0];
 document.getElementById("runTable").innerHTML = table(["Step", "What", "Size of this run"], [
   ["0–1", "Nuclide production (<code>cusp-activation</code>), isotropic protons on the payload", `${S.n_energies} energies, ${e0[0]}–${e0[1]} MeV, ${fmt(S.nprim, 2)} protons each`],
   ["2–3", "Decay chains (Geant4 RadioactiveDecay6.1.2) and activities per volume and nuclide", `${S.n_volumes} volumes, ${S.n_isotopes} nuclides`],
   ["4", "Decays at rest, uniform in each volume (<code>cusp-postactivation</code>); daughters with T<sub>½</sub> ≥ 1 µs not decayed", `${fmt(S.n_decays, 2)} decays, ${S.n_pairs} (volume, nuclide) pairs, ${fmt(S.decays_min, 1)}–${fmt(S.decays_max, 1)} per pair`],
   ["4b", "Event selection and spectra per pair (<code>build_spectra.py</code>)", `${MODES.length} event classes, 0–${sel.emax} keV, ${sel.binwidth} keV channels`],
-  ["5–8", "Orbit history at 60 s steps, rate histories and out-of-belt averages", "first day, 5 years, spectrum after 1 year"]], []);
-document.getElementById("ratesTable").innerHTML = table(
-  ["Time in orbit", "Activity [Bq]", ...MODES.map(m => NAMES[m] + " [counts/s]")],
-  times.map(t => [t, fmt(D.tables.rates[t].activity_Bq), ...MODES.map(m => fmt(D.tables.rates[t][m]))]), [1, 2, 3, 4]);
+  ["5–8", "Per orbit: history at 60 s steps, rate histories and out-of-belt averages", `${OR.length} orbit${OR.length > 1 ? "s" : ""}: ${LAB.map(esc).join(", ")}`]], []);
 
-// band integrals of the 1-year spectra
-const bands = [[0, 100], [100, 300], [300, 700], [700, 2000]];
-const E = D.spec.e_keV;
-document.getElementById("bandTable").innerHTML = table(
-  ["Band [keV]", ...MODES.map(m => NAMES[m] + " [counts/s]")],
-  bands.map(([a, b]) => [`${a}–${b}`, ...MODES.map(m => fmt(D.spec[m].reduce((s, y, i) => s + (E[i] >= a && E[i] < b ? y * D.spec.width_keV : 0), 0)))]), [1, 2, 3]);
+// rates by time: one row per orbit, then the ratios to the reference
+{
+  const rows = [], rr = [];
+  for (const t of times) {
+    const r0 = OR[0].tables.rates[t];
+    OR.forEach(o => rows.push([t, esc(o.label), fmt(o.tables.rates[t].activity_Bq), ...MODES.map(m => fmt(o.tables.rates[t][m]))]));
+    OR.slice(1).forEach(o => { rr.push(rows.length); const v = o.tables.rates[t];
+      rows.push([t, `${esc(o.label)} / ${esc(REF)}`, ratio(v.activity_Bq, r0.activity_Bq), ...MODES.map(m => ratio(v[m], r0[m]))]); });
+  }
+  document.getElementById("ratesTable").innerHTML = table(
+    ["Time in orbit", "Orbit", "Activity [Bq]", ...MODES.map(m => NAMES[m] + " [counts/s]")], rows, [2, 3, 4, 5], rr);
+}
 
-function tabs(id, labels, onSelect, initial) {
+// proton flux tables
+const F = D.flux;
+const fgt = (f, E) => { const i = f.levels_MeV.indexOf(E); return i < 0 ? null : f.F_mean[i]; };
+document.getElementById("tFlux").innerHTML = table(["E [MeV]", ...LAB.map(esc), ...LAB.slice(1).map(l => `${esc(l)} / ${esc(REF)}`)],
+  [1, 6, 10, 20, 30, 60, 100, 200, 400, 700].map(E => [E, ...LAB.map(l => fmt(fgt(F[l], E))), ...LAB.slice(1).map(l => ratio(fgt(F[l], E), fgt(F[REF], E)))]),
+  [1, 2, 3, 4, 5]);
+{
+  const Es = Object.keys(F[REF].nprim), tot = l => Object.values(F[l].nprim).reduce((a, b) => a + b, 0);
+  const rows = Es.map(e => [e, ...LAB.map(l => fmt(F[l].nprim[e])), ...LAB.slice(1).map(l => ratio(F[l].nprim[e], F[REF].nprim[e]))]);
+  rows.push(["Total", ...LAB.map(l => fmt(tot(l))), ...LAB.slice(1).map(l => ratio(tot(l), tot(REF)))]);
+  document.getElementById("tPrim").innerHTML = table(["E<sub>sim</sub> [MeV]", ...LAB.map(esc), ...LAB.slice(1).map(l => `${esc(l)} / ${esc(REF)}`)], rows, [1, 2, 3, 4, 5], [rows.length - 1]);
+}
+document.getElementById("fluxText").innerHTML += ` The flux along the orbit enters the rate histories through its time profile F(&gt;${F[REF].profile_emin_MeV} MeV), the protons that can activate the payload: its peak-to-mean ratio is ${
+  LAB.map(l => `${F[l].peak_to_mean_profile} for ${esc(l)}`).join(", ")} (total flux: ${LAB.map(l => `${F[l].peak_to_mean_total}`).join(", ")}).`;
+document.getElementById("legFlux").innerHTML = LAB.map((l, k) => `<span><i class="sw" style="background:var(--o${k+1})"></i>${esc(l)}</span>`).join("") + `<span><i class="beltkey"></i>Simulated energies, ${e0[0]}–${e0[1]} MeV</span>`;
+if (OR.length < 2) document.getElementById("ratioBox").style.display = "none";
+
+function tabs(id, labels, onSelect, initial, show = l => NAMES[l] || l) {
   const el = document.getElementById(id);
-  el.innerHTML = labels.map(l => `<button role="tab" type="button" data-k="${l}">${NAMES[l] || l}</button>`).join("");
+  if (labels.length < 2 && id !== "tabsAct" && id !== "tabsCat" && id !== "tabsMode" && id !== "tabsSpec") { el.style.display = "none"; onSelect(initial); return; }
+  el.innerHTML = labels.map(l => `<button role="tab" type="button" data-k="${esc(l)}">${esc(show(l))}</button>`).join("");
   const sel = k => { el.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", b.dataset.k === k)); onSelect(k); };
   el.addEventListener("click", e => { const b = e.target.closest("button"); if (b) sel(b.dataset.k); });
   sel(initial);
 }
-tabs("tabsAct", times, t => {
-  document.getElementById("tVol").innerHTML = table(["Volume", "Activity [Bq]", "Share"], D.tables.volumes[t].map(r => [r[0], fmt(r[1]), r[2] + "%"]), [1, 2]);
-  document.getElementById("tIso").innerHTML = table(["Nuclide", "T½", "Activity [Bq]", "Share"], D.tables.isotopes[t].map(r => [r[0], r[1], fmt(r[2]), r[3] + "%"]), [2, 3]);
-}, "1 year");
-tabs("tabsCat", times, t => {
-  const c = D.tables.groups[t];
-  const rows = Object.entries(c).sort((a, b) => b[1].act - a[1].act)
-    .map(([k, v]) => [k, v.act + "%", ...MODES.map(m => v[m] + "%")]);
-  document.getElementById("tCat").innerHTML = table(["Volume group", "Activity", ...MODES.map(m => NAMES[m])], rows, [1, 2, 3, 4]);
-}, "1 year");
-tabs("tabsMode", MODES, m => {
-  document.getElementById("tPair").innerHTML = table(["Volume", "Nuclide", "Rate [counts/s]", "Share"], D.tables.contrib[m].map(r => [r[0], r[1], fmt(r[2]), r[3] + "%"]), [2, 3]);
-  document.getElementById("tModeIso").innerHTML = table(["Nuclide", "T½", "Rate [counts/s]", "Share"], D.tables.contrib[m + "_iso"].map(r => [r[0], r[1], fmt(r[2]), r[3] + "%"]), [2, 3]);
-}, "compton");
+
+// spectrum band table follows the spectrum tab
+const bands = [[0, 100], [100, 300], [300, 700], [700, 2000]];
+function bandTable(m) {
+  const E = OR[0].spec.e_keV, w = OR[0].spec.width_keV;
+  const sum = o => bands.map(([a, b]) => o.spec[m].reduce((s, y, i) => s + (E[i] >= a && E[i] < b ? y * w : 0), 0));
+  const v = OR.map(sum);
+  document.getElementById("bandTable").innerHTML = table(
+    ["Band [keV]", ...LAB.map(l => `${esc(l)} [counts/s]`), ...LAB.slice(1).map(l => `${esc(l)} / ${esc(REF)}`)],
+    bands.map(([a, b], j) => [`${a}–${b}`, ...v.map(x => fmt(x[j])), ...v.slice(1).map(x => ratio(x[j], v[0][j]))]), [1, 2, 3, 4, 5]);
+}
+
+// orbit-dependent tables
+let curOrbit = 0, curAct = "1 year", curCat = "1 year", curMode = "compton";
+const T = () => OR[curOrbit].tables;
+function showAct(t) { curAct = t;
+  document.getElementById("tVol").innerHTML = table(["Volume", "Activity [Bq]", "Share"], T().volumes[t].map(r => [r[0], fmt(r[1]), r[2] + "%"]), [1, 2]);
+  document.getElementById("tIso").innerHTML = table(["Nuclide", "T½", "Activity [Bq]", "Share"], T().isotopes[t].map(r => [r[0], r[1], fmt(r[2]), r[3] + "%"]), [2, 3]); }
+function showCat(t) { curCat = t;
+  const rows = Object.entries(T().groups[t]).sort((a, b) => b[1].act - a[1].act).map(([k, v]) => [k, v.act + "%", ...MODES.map(m => v[m] + "%")]);
+  document.getElementById("tCat").innerHTML = table(["Volume group", "Activity", ...MODES.map(m => NAMES[m])], rows, [1, 2, 3, 4]); }
+function showMode(m) { curMode = m;
+  document.getElementById("tPair").innerHTML = table(["Volume", "Nuclide", "Rate [counts/s]", "Share"], T().contrib[m].map(r => [r[0], r[1], fmt(r[2]), r[3] + "%"]), [2, 3]);
+  document.getElementById("tModeIso").innerHTML = table(["Nuclide", "T½", "Rate [counts/s]", "Share"], T().contrib[m + "_iso"].map(r => [r[0], r[1], fmt(r[2]), r[3] + "%"]), [2, 3]); }
+tabs("tabsOrbit", LAB, l => { curOrbit = LAB.indexOf(l); showAct(curAct); showCat(curCat); showMode(curMode); }, REF);
+tabs("tabsAct", times, showAct, "1 year");
+tabs("tabsCat", times, showCat, "1 year");
+tabs("tabsMode", MODES, showMode, "compton");
+
+// legends of the overlaid charts
+const orbitKeys = LAB.map((l, k) => `<span><i class="ls ${LSCLS[k]}"></i>${esc(l)}</span>`).join("");
+document.getElementById("legLong").innerHTML = MODES.map((m, i) => `<span><i class="sw s${i+1}"></i>${NAMES[m]}</span>`).join("") + (OR.length > 1 ? orbitKeys : "");
+document.getElementById("legSpec").innerHTML = OR.length > 1 ? orbitKeys : "";
 
 // charts
-const charts = [];
-function seriesStyle(i) {
-  const c = css(`--s${i + 1}`);
-  return { borderColor: c, backgroundColor: c, borderWidth: 1.6, pointRadius: 0, pointHoverRadius: 4, borderDash: i === 2 ? [6, 3] : [], tension: 0 };
+const charts = {};
+let dayOrbit = 0, specMode = "compton";
+function lineStyle(color, k = 0, w = 1.6) {
+  return { borderColor: color, backgroundColor: color, borderWidth: w, pointRadius: 0, pointHoverRadius: 4, borderDash: DASH[k], tension: 0 };
 }
+function logTicks(ink) { return { color: ink, callback: v => { const l = Math.log10(v); return Math.abs(l - Math.round(l)) < 1e-6 ? fmt(v, 1) : ""; } }; }
 function baseOptions(xTitle, yTitle, xType, xMax) {
   const grid = css("--grid"), ink = css("--muted");
   return {
@@ -209,8 +288,8 @@ function baseOptions(xTitle, yTitle, xType, xMax) {
     plugins: { legend: { display: false },
       tooltip: { callbacks: { title: it => it.length ? `${xTitle.split(" [")[0]} ${fmt(it[0].parsed.x, 4)}` : "", label: it => ` ${it.dataset.label}: ${fmt(it.parsed.y)}` } } },
     scales: {
-      x: { type: xType, min: 0, max: xMax, title: { display: true, text: xTitle, color: ink }, grid: { color: grid }, ticks: { color: ink, maxTicksLimit: 12 } },
-      y: { type: "logarithmic", title: { display: true, text: yTitle, color: ink }, grid: { color: grid }, ticks: { color: ink, callback: v => { const l = Math.log10(v); return Math.abs(l - Math.round(l)) < 1e-6 ? fmt(v, 1) : ""; } } }
+      x: { type: xType, min: xType === "linear" ? 0 : undefined, max: xMax, title: { display: true, text: xTitle, color: ink }, grid: { color: grid }, ticks: { color: ink, maxTicksLimit: 12 } },
+      y: { type: "logarithmic", title: { display: true, text: yTitle, color: ink }, grid: { color: grid }, ticks: logTicks(ink) }
     }
   };
 }
@@ -218,28 +297,60 @@ const beltPlugin = { id: "belt", beforeDatasetsDraw(chart, args, opts) {
   if (!opts.segs) return;
   const { ctx, chartArea: a, scales: { x } } = chart;
   ctx.save(); ctx.fillStyle = css("--belt");
-  for (const [s, e] of opts.segs) { const x0 = x.getPixelForValue(s), x1 = Math.max(x.getPixelForValue(e), x0 + 1); ctx.fillRect(x0, a.top, x1 - x0, a.bottom - a.top); }
+  for (const [s, e] of opts.segs) { const x0 = Math.max(x.getPixelForValue(s), a.left), x1 = Math.min(Math.max(x.getPixelForValue(e), x0 + 1), a.right); if (x1 > x0) ctx.fillRect(x0, a.top, x1 - x0, a.bottom - a.top); }
   ctx.restore(); } };
+const pts = (xs, ys) => xs.map((x, i) => ({ x, y: ys[i] > 0 ? ys[i] : null }));
+function draw(key, canvas, cfg) { if (charts[key]) charts[key].destroy(); charts[key] = new Chart(document.getElementById(canvas), cfg); }
 
-function build() {
-  charts.forEach(c => c.destroy()); charts.length = 0;
-  const pts = (xs, ys) => xs.map((x, i) => ({ x, y: ys[i] > 0 ? ys[i] : null }));
-  // first day
-  let o = baseOptions("Time since start [h]", "Rate [counts/s]", "linear", 24);
-  o.plugins.belt = { segs: D.day.belt };
-  o.scales.y.min = 1e-2;
-  charts.push(new Chart(document.getElementById("cDay"), { type: "line", plugins: [beltPlugin],
-    data: { datasets: MODES.map((m, i) => ({ label: NAMES[m], data: pts(D.day.t_h, D.day[m]), spanGaps: false, ...seriesStyle(i) })) }, options: o }));
-  // 5 years
-  o = baseOptions("Time since start [d]", "Rate [counts/s]", "linear", 1826);
-  charts.push(new Chart(document.getElementById("cLong"), { type: "line",
-    data: { datasets: MODES.map((m, i) => ({ label: NAMES[m], data: pts(D.long.t_d, D.long[m]), ...seriesStyle(i), borderWidth: 2 })) }, options: o }));
-  // spectra
-  o = baseOptions("Energy [keV]", "Rate [counts/s/keV]", "linear", 2000);
-  o.scales.y.min = 1e-6;
-  charts.push(new Chart(document.getElementById("cSpec"), { type: "line",
-    data: { datasets: MODES.map((m, i) => ({ label: NAMES[m], data: pts(D.spec.e_keV, D.spec[m]), stepped: "middle", ...seriesStyle(i), borderWidth: 1.2 })) }, options: o }));
+function diffFlux(f) {
+  const L = f.levels_MeV, V = f.F_mean, out = [];
+  for (let i = 0; i + 1 < L.length; i++) { const d = (V[i] - V[i + 1]) / (L[i + 1] - L[i]); if (d > 0) out.push({ x: Math.sqrt(L[i] * L[i + 1]), y: d }); }
+  return out;
 }
+function drawFlux() {
+  const series = LAB.map(l => diffFlux(F[l]));
+  let o = baseOptions("Proton energy [MeV]", "Differential flux [p/cm²/s/MeV]", "logarithmic");
+  o.scales.x.ticks = logTicks(css("--muted"));
+  o.interaction = { mode: "nearest", intersect: false };
+  o.plugins.belt = { segs: [e0] };
+  draw("flux", "cFlux", { type: "line", plugins: [beltPlugin],
+    data: { datasets: LAB.map((l, k) => ({ label: l, data: series[k], ...lineStyle(css(`--o${k+1}`), 0, 1.8), pointRadius: 2.5 })) }, options: o });
+  if (OR.length < 2) return;
+  const ref = new Map(series[0].map(p => [p.x.toPrecision(6), p.y]));
+  o = baseOptions("Proton energy [MeV]", `Ratio to ${REF}`, "logarithmic");
+  o.scales.x.ticks = logTicks(css("--muted"));
+  o.scales.y.type = "linear";
+  o.scales.y.ticks = { color: css("--muted") };
+  o.interaction = { mode: "nearest", intersect: false };
+  o.plugins.belt = { segs: [e0] };
+  const one = { id: "one", afterDatasetsDraw(c) { const { ctx, chartArea: a, scales: { y } } = c; const py = y.getPixelForValue(1);
+    ctx.save(); ctx.strokeStyle = css("--muted"); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(a.left, py); ctx.lineTo(a.right, py); ctx.stroke(); ctx.restore(); } };
+  draw("ratio", "cRatio", { type: "line", plugins: [beltPlugin, one],
+    data: { datasets: LAB.slice(1).map((l, j) => ({ label: `${l} / ${REF}`, data: series[j + 1].filter(p => ref.has(p.x.toPrecision(6))).map(p => ({ x: p.x, y: p.y / ref.get(p.x.toPrecision(6)) })), ...lineStyle(css(`--o${j+2}`), 0, 1.8), pointRadius: 2.5 })) }, options: o });
+}
+function drawDay() {
+  const d = OR[dayOrbit].day;
+  const o = baseOptions("Time since start [h]", "Rate [counts/s]", "linear", 24);
+  o.plugins.belt = { segs: d.belt };
+  o.scales.y.min = 1e-2;
+  draw("day", "cDay", { type: "line", plugins: [beltPlugin],
+    data: { datasets: MODES.map((m, i) => ({ label: NAMES[m], data: pts(d.t_h, d[m]), spanGaps: false, ...lineStyle(css(`--s${i+1}`)) })) }, options: o });
+}
+function drawLong() {
+  const o = baseOptions("Time since start [d]", "Rate [counts/s]", "linear", 1826);
+  draw("long", "cLong", { type: "line",
+    data: { datasets: OR.flatMap((r, k) => MODES.map((m, i) => ({ label: `${NAMES[m]}, ${r.label}`, data: pts(r.long.t_d, r.long[m]), ...lineStyle(css(`--s${i+1}`), k, 2) }))) }, options: o });
+}
+function drawSpec() {
+  const i = MODES.indexOf(specMode);
+  const o = baseOptions("Energy [keV]", "Rate [counts/s/keV]", "linear", 2000);
+  o.scales.y.min = 1e-6;
+  draw("spec", "cSpec", { type: "line",
+    data: { datasets: OR.map((r, k) => ({ label: `${NAMES[specMode]}, ${r.label}`, data: pts(r.spec.e_keV, r.spec[specMode]), stepped: "middle", ...lineStyle(css(`--s${i+1}`), k, 1.2) })) }, options: o });
+}
+function build() { drawFlux(); drawDay(); drawLong(); drawSpec(); }
+tabs("tabsDay", LAB, l => { dayOrbit = LAB.indexOf(l); if (charts.day) drawDay(); }, REF);
+tabs("tabsSpec", MODES, m => { specMode = m; bandTable(m); if (charts.spec) drawSpec(); }, "compton");
 build();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", build);
 new MutationObserver(build).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });

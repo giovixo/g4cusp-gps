@@ -104,8 +104,12 @@ activation background (rates and spectra). It follows the method of Campana et a
   `--emin/--emax`; the old `result_spectra/*.dat` input still works.
 - The user is mostly interested in **out-of-belt** results: averages in steps 7–8 and in the report use
   out-of-belt steps by default (`--belt-threshold`, `--all-orbit`).
-- SPENVIS files (`AP[89]*.txt`) are git-ignored. The current one, `AP8MIN.AP8.output_mean_flux_550km_SSO.txt`,
-  stops at 400 MeV; the 700 MeV runs are kept on purpose for AP9 spectra.
+- SPENVIS files (`AP[89]*.txt`) are git-ignored: `AP8MIN.AP8.output_mean_flux_550km_SSO.txt` (stops at 400 MeV)
+  and `AP9MEAN.AP9.output_mean_flux_550km_SSO.txt` (to 2000 MeV, uses the 700 MeV runs).
+- **A new orbit or flux model needs only steps 6–8** (or `build_report.py` with several SPENVIS files and
+  `--labels`, one report with ratios): steps 0–4 do not depend on the orbit, so never rerun them for that.
+- Steps 4 (weights), 7 and 8 use F(>E_min), E_min = lowest simulation energy (recorded by step 6 in
+  `count_rate.dat`/`spectra.pkl`), as the flux time profile; the belt passages use the total flux.
 - `myUtilities` (plot style) is on the user's own PYTHONPATH, not in the repo; its import is optional.
 
 ## Conventions

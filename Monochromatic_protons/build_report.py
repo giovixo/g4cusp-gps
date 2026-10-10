@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Report on an activation-pipeline run: HTML page and PDF.
+Report on an activation-pipeline run: HTML page and PDF, for one or more orbits.
 
-For each detector event class (default: scat_single, abs_single, compton) it
-runs steps 6 and 8 on the step-4 spectra (or reuses their outputs; the step-7
-histories are computed internally with activation_history), then collects
+For each orbit (SPENVIS file) and each detector event class (default:
+scat_single, abs_single, compton) it runs steps 6 and 8 on the step-4 spectra
+(or reuses their outputs; the step-7 histories are computed internally with
+activation_history), then collects
 
   - the instantaneous rate during the first day in orbit (60 s steps, belt passages marked);
   - the out-of-belt mean rate over a trailing 30-day window for the first 5 years;
@@ -12,16 +13,20 @@ histories are computed internally with activation_history), then collects
   - the out-of-belt mean activity of every (volume, isotope) pair after 1 day, 1 month,
     1 year and 5 years in orbit, and its contribution to each event class;
 
-and writes <outdir>/report_data.json, <outdir>/<name>.html (from report_template.html)
-and <outdir>/<name>.pdf.
+and, to compare the orbits, their orbit-averaged proton spectra and the primaries
+per simulation energy.  The step-0 to step-4 outputs do not depend on the orbit:
+a new orbit or flux model needs only this script.  Writes <outdir>/report_data.json,
+<outdir>/<name>.html (from report_template.html) and <outdir>/<name>.pdf; the step
+6 and 8 outputs go to <outdir>/<label>/<mode>/.
 
 Usage (from Monochromatic_protons/):
 
     python build_report.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \\
-        --spectra-dir result_postact --outdir report_run
+        AP9MEAN.AP9.output_mean_flux_550km_SSO.txt --spectra-dir result_postact --outdir report_run
 
-Options: --modes, --reuse (skip steps 6 and 8 whose outputs exist), --name.
-Steps 6 and 8 take a few minutes; the curves and statistics about two more.
+Options: --labels (default: the file names up to the first dot, e.g. AP8MIN), --modes,
+--reuse (skip steps 6 and 8 whose outputs exist), --name.  The first orbit is the
+reference of the ratios.  About 5 minutes per orbit.
 """
 
 from __future__ import annotations
@@ -43,7 +48,9 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from activation_history import compute_long_term_history     # noqa: E402
+from accumulate_spectra import primaries_per_step, source_beam_area   # noqa: E402
+from activation_history import (compute_long_term_history, count_rate_info,   # noqa: E402
+                                flux_profile, read_flux_table)
 from nuclides import parse_name                              # noqa: E402
 from pair_spectra import load_pair_spectra, spectra_path     # noqa: E402
 from run_postactivation import compute_pair_weights          # noqa: E402
@@ -79,7 +86,9 @@ def run_steps(activities: Path, spenvis: Path, spectra_dir: Path, outdir: Path,
               "--save-dat", str(d / "avg_1y.dat"), "--save-plot", str(d / "avg_1y.png")], "step8"),
         ]
         for target, cmd, tag in jobs:
-            if reuse and target.exists():
+            # outputs written before the flux time profile was recorded are redone
+            if reuse and target.exists() and \
+                    count_rate_info(d / "count_rate.dat").get("profile_emin") is not None:
                 print(f"[{m}] {tag}: reusing {target}")
                 continue
             print(f"[{m}] {tag}: {' '.join(cmd[1:3])} ...")
@@ -138,6 +147,25 @@ def curves(outdir: Path, spenvis: Path, modes: list[str]) -> dict:
         widths = np.diff(a[:2, 0])[0] * SPEC_REBIN
     out["spec"] = {"e_keV": np.round(ec, 2).tolist(), "width_keV": float(widths), **{m: _sig(spec[m]) for m in modes}}
     return out
+
+
+def flux_data(activities: Path, spenvis: Path) -> dict:
+    """Orbit-averaged integral spectrum, primaries per simulation energy, time-profile statistics."""
+    levels, flux, _ = read_flux_table(spenvis)
+    acts_attrs = pd.read_pickle(activities).attrs
+    energies = sorted(float(e) for e in acts_attrs.get("nprim", {}))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")          # bands above the last level: reported below
+        nprim, _, _ = primaries_per_step(spenvis, energies, source_beam_area(acts_attrs))
+    total, prof = flux[:, 0], flux_profile(spenvis, energies[0])
+    return {
+        "levels_MeV": levels.tolist(), "F_mean": _sig(flux.mean(axis=0)),
+        "nprim": {f"{e:g}": float(f"{nprim[e]:.4g}") for e in energies},
+        "emax_MeV": float(levels[-1]), "profile_emin_MeV": energies[0],
+        "peak_to_mean_total": round(float(total.max() / total.mean()), 1),
+        "peak_to_mean_profile": round(float(prof.max() / prof.mean()), 1),
+        "in_belt_fraction": round(float((total > 0).mean()), 4),
+    }
 
 
 def pair_stats(activities: Path, spenvis: Path, spectra_dir: Path, modes: list[str]) -> pd.DataFrame:
@@ -231,7 +259,7 @@ def tables(ps: pd.DataFrame, modes: list[str]) -> dict:
     return out
 
 
-def summary(activities: Path, spenvis: Path, spectra_dir: Path, modes: list[str], ps: pd.DataFrame) -> dict:
+def summary(activities: Path, spectra_dir: Path, modes: list[str], orbits: list[dict]) -> dict:
     attrs = pd.read_pickle(activities).attrs
     nprim = attrs.get("nprim", {})
     energies = sorted(float(e) for e in nprim)
@@ -243,7 +271,7 @@ def summary(activities: Path, spenvis: Path, spectra_dir: Path, modes: list[str]
     except Exception:
         commit = "unknown"
     return {
-        "date": dt.date.today().isoformat(), "commit": commit, "spenvis": spenvis.name,
+        "date": dt.date.today().isoformat(), "commit": commit, "orbits": orbits,
         "energies_MeV": [energies[0], energies[-1]] if energies else None, "n_energies": len(energies),
         "nprim": int(np.median(list(nprim.values()))) if nprim else None,
         "source": attrs.get("source", {}),
@@ -261,21 +289,25 @@ def summary(activities: Path, spenvis: Path, spectra_dir: Path, modes: list[str]
 # ---------------------------------------------------------------------------
 
 def write_html(data: dict, path: Path) -> None:
-    template = (HERE / "report_template.html").read_text()
-    path.write_text(template.replace("__DATA__", json.dumps(data, separators=(",", ":"))))
+    template = (HERE / "report_template.html").read_text(encoding="utf-8")
+    path.write_text(template.replace("__DATA__", json.dumps(data, separators=(",", ":"))), encoding="utf-8")
 
 
 def write_pdf(data: dict, path: Path) -> None:
+    import textwrap
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
 
-    modes = list(data["summary"]["modes"])
-    names = data["summary"]["modes"]
-    colors = ["#2a78d6", "#eb6834", "#1baf7a"]
-    styles = ["-", "-", "--"]
-    S, T = data["summary"], data["tables"]
+    S = data["summary"]
+    modes, names = list(S["modes"]), S["modes"]
+    orbits = data["orbits"]
+    labels = [o["label"] for o in orbits]
+    ref = labels[0]
+    colors = ["#2a78d6", "#eb6834", "#1baf7a"]          # event classes
+    ocolors = ["#3b4250", "#8a4fd8", "#c2185b"]         # orbits (flux plot)
+    ostyles = ["-", "--", ":"]                           # orbits (rate plots)
     plt.style.use("default")          # independent of the user's matplotlibrc
     plt.rcParams.update({"font.family": "sans-serif", "font.size": 9, "axes.labelsize": 10,
                          "axes.titlesize": 11, "axes.titleweight": "bold", "legend.fontsize": 9,
@@ -290,7 +322,6 @@ def write_pdf(data: dict, path: Path) -> None:
         y = 0.91
         for kind, content in blocks:
             if kind == "p":
-                import textwrap
                 for line in textwrap.wrap(content, 105):
                     fig.text(0.08, y, line, fontsize=9, va="top")
                     y -= 0.016
@@ -300,16 +331,13 @@ def write_pdf(data: dict, path: Path) -> None:
                 fig.text(0.08, y, content, fontsize=11, weight="bold", va="top")
                 y -= 0.024
             elif kind == "table":
-                import textwrap
                 head, rows = content
                 # column widths from the longest entry, capped; long cells are wrapped
                 char_w, max_chars = 0.0098, 85          # page fraction per character at 7.5 pt
                 lens = [max(len(str(r[c])) for r in rows + [head]) + 2 for c in range(len(head))]
                 widths = [max(n, 7) for n in lens]
-                if sum(widths) > max_chars:             # shrink the widest columns and wrap
-                    while sum(widths) > max_chars:
-                        k = int(np.argmax(widths))
-                        widths[k] -= 1
+                while sum(widths) > max_chars:          # shrink the widest columns and wrap
+                    widths[int(np.argmax(widths))] -= 1
                 total = sum(widths)
                 frac = [w / total for w in widths]
                 width = char_w * total
@@ -340,90 +368,165 @@ def write_pdf(data: dict, path: Path) -> None:
     def g(x):
         return f"{x:.3g}"
 
+    def rate_rows(t):
+        """One row per orbit at time t, and the ratios to the reference orbit."""
+        rows = []
+        for o in orbits:
+            v = o["tables"]["rates"][t]
+            rows.append([o["label"], g(v["activity_Bq"])] + [g(v[m]) for m in modes])
+        r0 = orbits[0]["tables"]["rates"][t]
+        for o in orbits[1:]:
+            v = o["tables"]["rates"][t]
+            rows.append([f"{o['label']} / {ref}", f"{v['activity_Bq'] / r0['activity_Bq']:.3f}"]
+                        + [f"{v[m] / r0[m]:.3f}" for m in modes])
+        return rows
+
+    sel = S["selection"]
+    flux = data["flux"]
+    e0 = S["energies_MeV"]
     with PdfPages(path) as pdf:
-        sel = S["selection"]
-        r1 = T["rates"]["1 year"]
         text_page(pdf, "Activation-induced background of the CUSP polarimeter", [
             ("p", f"Activation-pipeline run, {S['date']} (g4cusp-gps branch activation, commit {S['commit']}). "
-                  f"Orbit: {S['spenvis']}. Background from the decay of nuclides produced by trapped protons in "
-                  f"the CUSP mass model, computed with the three-step method of Campana et al. (2026). Rates are "
-                  f"means over the out-of-belt part of the orbit unless stated otherwise."),
+                  f"Orbits: " + "; ".join(f"{o['label']} ({o['spenvis']})" for o in S["orbits"]) + ". "
+                  f"Background from the decay of nuclides produced by trapped protons in the CUSP mass model, "
+                  f"computed with the three-step method of Campana et al. (2026). Rates are means over the "
+                  f"out-of-belt part of the orbit unless stated otherwise. The simulation (steps 0-4) is the same "
+                  f"for all orbits: only the proton flux changes."),
             ("h", "Out-of-belt mean rate after one year in orbit"),
-            ("table", (["Event class", "Rate [counts/s]"], [[names[m], g(r1[m])] for m in modes]
-                       + [["Payload activity", f"{g(r1['activity_Bq'])} Bq"]])),
+            ("table", (["Orbit", "Activity [Bq]"] + [f"{names[m]} [counts/s]" for m in modes], rate_rows("1 year"))),
             ("h", "Run summary"),
             ("table", (["Step", "Content"], [
-                ["0-1", f"Nuclide production: {S['n_energies']} proton energies, {S['energies_MeV'][0]:g}-"
-                        f"{S['energies_MeV'][1]:g} MeV, {S['nprim']:.0e} protons each"],
+                ["0-1", f"Nuclide production: {S['n_energies']} proton energies, {e0[0]:g}-{e0[1]:g} MeV, "
+                        f"{S['nprim']:.0e} protons each"],
                 ["2-3", "Decay chains and activities per volume and nuclide (Geant4 RadioactiveDecay6.1.2)"],
                 ["4", f"Decays at rest: {S['n_decays']:.2e} decays, {S['n_pairs']} pairs "
                       f"({S['n_volumes']} volumes, {S['n_isotopes']} nuclides), {S['decays_min']:.0e}-"
                       f"{S['decays_max']:.0e} per pair"],
                 ["4b", f"Selection: thresholds {sel['thr_scat']:g} keV plastic / {sel['thr_abs']:g} keV GAGG, "
                        f"window {sel['window']:g} ns, 0-{sel['emax']:g} keV ({sel['selection']})"],
-                ["5-8", "Orbit history (60 s steps), 5-year history, out-of-belt averages"]])),
+                ["5-8", "Per orbit: history at 60 s steps, 5-year history, out-of-belt averages"]])),
             ("h", "Out-of-belt mean rate by time in orbit"),
-            ("table", (["Time in orbit", "Activity [Bq]"] + [f"{names[m]} [counts/s]" for m in modes],
-                       [[t, g(v["activity_Bq"])] + [g(v[m]) for m in modes] for t, v in T["rates"].items()])),
+            ("table", (["Time in orbit", "Orbit", "Activity [Bq]"] + [f"{names[m]} [counts/s]" for m in modes],
+                       [[t] + r for t in TIMES for r in rate_rows(t)])),
         ])
 
-        # first day
-        fig, ax = plt.subplots(figsize=(A4[0], 4.6))
-        for s, e in data["day"]["belt"]:
-            ax.axvspan(s, e, color="#7a8496", alpha=0.18, lw=0)
-        th = np.array(data["day"]["t_h"])
-        for i, m in enumerate(modes):
-            y = np.array(data["day"][m], dtype=float)
-            ax.plot(th, np.where(y > 0, y, np.nan), styles[i], color=colors[i], lw=1.1, label=names[m])
-        ax.set_yscale("log"); ax.set_ylim(bottom=1e-2); ax.set_xlim(0, 24)
-        ax.set_xlabel("Time since start of mission [h]"); ax.set_ylabel("Rate [counts/s]")
-        ax.set_title(pad=26, label="Activation-induced rate during the first day (shaded: in radiation belt)")
-        ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, frameon=False)
+        # proton spectra
+        fig, (ax, axr) = plt.subplots(2, 1, figsize=(A4[0], 7.4), sharex=True,
+                                      gridspec_kw={"height_ratios": [2.2, 1]})
+        diff = {}
+        for k, lab in enumerate(labels):
+            L, F = np.array(flux[lab]["levels_MeV"]), np.array(flux[lab]["F_mean"], float)
+            ec, dfl = np.sqrt(L[:-1] * L[1:]), (F[:-1] - F[1:]) / np.diff(L)
+            ok = dfl > 0
+            diff[lab] = dict(zip(np.round(ec, 6), dfl))
+            ax.plot(ec[ok], dfl[ok], "o-", color=ocolors[k], ms=3.5, lw=1.4, label=lab)
+        ax.axvspan(e0[0], e0[1], color="#7a8496", alpha=0.10, lw=0)
+        ax.set_xscale("log"); ax.set_yscale("log")
+        ax.set_ylabel("Differential flux [p/cm²/s/MeV]")
+        ax.set_title(pad=26, label="Orbit-averaged trapped-proton spectrum (shaded: simulated energies)")
+        ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=4, frameon=False)
+        for k, lab in enumerate(labels[1:], 1):
+            common = sorted(set(diff[ref]) & set(diff[lab]))
+            x = np.array(common)
+            y = np.array([diff[lab][c] / diff[ref][c] for c in common])
+            axr.plot(x, y, "o-", color=ocolors[k], ms=3.5, lw=1.4, label=f"{lab} / {ref}")
+        axr.axhline(1, color="#9aa1ab", lw=0.8)
+        axr.axvspan(e0[0], e0[1], color="#7a8496", alpha=0.10, lw=0)
+        axr.set_xscale("log")
+        axr.set_xlabel("Proton energy [MeV]"); axr.set_ylabel(f"Ratio to {ref}")
+        axr.legend(loc="upper left", frameon=False)
         fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
 
-        # 5 years
-        fig, ax = plt.subplots(figsize=(A4[0], 4.6))
-        td = np.array(data["long"]["t_d"])
-        for i, m in enumerate(modes):
-            ax.plot(td, data["long"][m], styles[i], color=colors[i], lw=1.6, label=names[m])
+        Es = list(flux[ref]["nprim"])
+        text_page(pdf, "Proton flux of the orbits", [
+            ("p", "Orbit-averaged integral flux F(>E) of the SPENVIS files, and the primaries per 60 s step "
+                  "assigned to each simulation energy (band between the geometric midpoints to its neighbours). "
+                  "The time profile of the flux along the orbit is F(>E_min), with E_min the lowest simulation "
+                  "energy; the belt passages are the steps with a non-zero total flux."),
+            ("h", "Integral flux F(>E) [p/cm²/s]"),
+            ("table", (["E [MeV]"] + labels + [f"{l} / {ref}" for l in labels[1:]],
+                       [[f"{E:g}"] + [g(_fgt(flux[l], E)) if _fgt(flux[l], E) is not None else "–" for l in labels]
+                        + [_ratio(_fgt(flux[l], E), _fgt(flux[ref], E)) for l in labels[1:]]
+                        for E in (1, 6, 10, 20, 30, 60, 100, 200, 400, 700)])),
+            ("h", "Primaries per 60 s step"),
+            ("table", (["Simulation energy [MeV]"] + labels + [f"{l} / {ref}" for l in labels[1:]],
+                       [[e] + [g(flux[l]["nprim"][e]) for l in labels]
+                        + [_ratio(flux[l]["nprim"][e], flux[ref]["nprim"][e]) for l in labels[1:]] for e in Es]
+                       + [["Total"] + [g(sum(flux[l]["nprim"].values())) for l in labels]
+                          + [_ratio(sum(flux[l]["nprim"].values()), sum(flux[ref]["nprim"].values()))
+                             for l in labels[1:]]])),
+            ("h", "Time profile"),
+            ("table", (["Orbit", "Last level [MeV]", "In-belt steps", "Peak/mean, total flux",
+                        f"Peak/mean, F(>{flux[ref]['profile_emin_MeV']:g} MeV)"],
+                       [[l, f"{flux[l]['emax_MeV']:g}", f"{100 * flux[l]['in_belt_fraction']:.1f}%",
+                         g(flux[l]["peak_to_mean_total"]), g(flux[l]["peak_to_mean_profile"])] for l in labels])),
+        ])
+
+        # first day, one panel per orbit
+        fig, axes = plt.subplots(len(orbits), 1, figsize=(A4[0], 3.6 * len(orbits) + 0.6), squeeze=False)
+        for ax, o in zip(axes[:, 0], orbits):
+            for s_, e_ in o["day"]["belt"]:
+                ax.axvspan(s_, e_, color="#7a8496", alpha=0.18, lw=0)
+            th = np.array(o["day"]["t_h"])
+            for i, m in enumerate(modes):
+                y = np.array(o["day"][m], dtype=float)
+                ax.plot(th, np.where(y > 0, y, np.nan), color=colors[i], lw=1.1, label=names[m])
+            ax.set_yscale("log"); ax.set_ylim(1e-2, None); ax.set_xlim(0, 24)
+            ax.set_ylabel("Rate [counts/s]")
+            ax.set_title(f"{o['label']}: rate during the first day (shaded: in radiation belt)", pad=22)
+            ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, frameon=False, fontsize=8)
+        axes[-1, 0].set_xlabel("Time since start of mission [h]")
+        fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
+
+        # 5 years: colour = event class, line style = orbit
+        fig, ax = plt.subplots(figsize=(A4[0], 4.8))
+        for k, o in enumerate(orbits):
+            td = np.array(o["long"]["t_d"])
+            for i, m in enumerate(modes):
+                ax.plot(td, o["long"][m], ostyles[k], color=colors[i], lw=1.5,
+                        label=f"{names[m]}, {o['label']}")
         ax.set_yscale("log"); ax.set_xlim(0, td[-1])
         ax.set_xlabel("Time since start of mission [d]"); ax.set_ylabel("Rate [counts/s]")
-        ax.set_title(pad=26, label=f"Out-of-belt mean rate, trailing {LONG_WINDOW_D}-day window, first 5 years")
-        ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, frameon=False)
+        ax.set_title(pad=40, label=f"Out-of-belt mean rate, trailing {LONG_WINDOW_D}-day window, first 5 years")
+        ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=len(modes), frameon=False, fontsize=8)
         fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
 
-        # spectra
-        fig, ax = plt.subplots(figsize=(A4[0], 4.6))
-        e = np.array(data["spec"]["e_keV"])
-        for i, m in enumerate(modes):
-            y = np.array(data["spec"][m], dtype=float)
-            ax.step(e, np.where(y > 0, y, np.nan), where="mid", ls=styles[i], color=colors[i], lw=0.9, label=names[m])
-        ax.set_yscale("log"); ax.set_xlim(0, e[-1] + data["spec"]["width_keV"] / 2); ax.set_ylim(bottom=1e-6)
-        ax.set_xlabel("Deposited energy [keV]"); ax.set_ylabel("Rate [counts/s/keV]")
-        ax.set_title(pad=26, label=f"Out-of-belt mean spectrum after one year ({data['spec']['width_keV']:g} keV bins)")
-        ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, frameon=False)
+        # spectra: one panel per event class
+        fig, axes = plt.subplots(len(modes), 1, figsize=(A4[0], 3.3 * len(modes) + 0.6), sharex=True, squeeze=False)
+        for ax, (i, m) in zip(axes[:, 0], enumerate(modes)):
+            for k, o in enumerate(orbits):
+                e = np.array(o["spec"]["e_keV"]); y = np.array(o["spec"][m], dtype=float)
+                ax.step(e, np.where(y > 0, y, np.nan), where="mid", ls=ostyles[k], color=colors[i], lw=0.9,
+                        label=o["label"])
+            ax.set_yscale("log"); ax.set_ylim(1e-6, None); ax.set_xlim(0, e[-1] + o["spec"]["width_keV"] / 2)
+            ax.set_ylabel("Rate [counts/s/keV]")
+            ax.set_title(f"{names[m]}: out-of-belt mean spectrum after one year", pad=6)
+            ax.legend(loc="upper right", frameon=False)
+        axes[-1, 0].set_xlabel("Deposited energy [keV]")
         fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
 
-        # tables
-        for t in TIMES:
-            text_page(pdf, f"Where the activity is: after {t} in orbit", [
-                ("h", "Most active volumes"),
-                ("table", (["Volume", "Activity [Bq]", "Share"], [[v, g(a), f"{s}%"] for v, a, s in T["volumes"][t]])),
-                ("h", "Most active nuclides"),
-                ("table", (["Nuclide", "T1/2", "Activity [Bq]", "Share"], [[i, h, g(a), f"{s}%"] for i, h, a, s in T["isotopes"][t]])),
-                ("h", "Share by volume group (activity, and each event class)"),
-                ("table", (["Volume group", "Activity"] + [names[m] for m in modes],
-                           [[k, f"{v['act']}%"] + [f"{v[m]}%" for m in modes]
-                            for k, v in sorted(T["groups"][t].items(), key=lambda kv: -kv[1]["act"])])),
-            ])
-        for m in modes:
-            text_page(pdf, f"{names[m]}: background after one year", [
-                ("h", "Leading (volume, nuclide) pairs"),
-                ("table", (["Volume", "Nuclide", "Rate [counts/s]", "Share"],
-                           [[v, i, g(r), f"{s}%"] for v, i, r, s in T["contrib"][m]])),
-                ("h", "Leading nuclides (all volumes)"),
-                ("table", (["Nuclide", "T1/2", "Rate [counts/s]", "Share"],
-                           [[i, h, g(r), f"{s}%"] for i, h, r, s in T["contrib"][m + "_iso"]]))])
+        # tables, per orbit
+        for o in orbits:
+            T = o["tables"]
+            for t in TIMES:
+                text_page(pdf, f"{o['label']}: where the activity is after {t} in orbit", [
+                    ("h", "Most active volumes"),
+                    ("table", (["Volume", "Activity [Bq]", "Share"], [[v, g(a), f"{s}%"] for v, a, s in T["volumes"][t]])),
+                    ("h", "Most active nuclides"),
+                    ("table", (["Nuclide", "T1/2", "Activity [Bq]", "Share"], [[i, h, g(a), f"{s}%"] for i, h, a, s in T["isotopes"][t]])),
+                    ("h", "Share by volume group (activity, and each event class)"),
+                    ("table", (["Volume group", "Activity"] + [names[m] for m in modes],
+                               [[k, f"{v['act']}%"] + [f"{v[m]}%" for m in modes]
+                                for k, v in sorted(T["groups"][t].items(), key=lambda kv: -kv[1]["act"])])),
+                ])
+            for m in modes:
+                text_page(pdf, f"{o['label']}, {names[m]}: background after one year", [
+                    ("h", "Leading (volume, nuclide) pairs"),
+                    ("table", (["Volume", "Nuclide", "Rate [counts/s]", "Share"],
+                               [[v, i, g(r), f"{s}%"] for v, i, r, s in T["contrib"][m]])),
+                    ("h", "Leading nuclides (all volumes)"),
+                    ("table", (["Nuclide", "T1/2", "Rate [counts/s]", "Share"],
+                               [[i, h, g(r), f"{s}%"] for i, h, r, s in T["contrib"][m + "_iso"]]))])
         text_page(pdf, "Method and limits", [
             ("p", "Event classes (provisional selection): a scintillator triggers above the plastic or GAGG threshold; "
                   "deposits later than the coincidence window after the first trigger are dropped. Plastic singles: "
@@ -432,15 +535,40 @@ def write_pdf(data: dict, path: Path) -> None:
                   "kinematic cuts yet."),
             ("p", "Detector response: true energy deposits; no energy resolution, light yield or quenching; no dead "
                   "time or pile-up. The prompt background during belt passages is not part of this calculation."),
-            ("p", "Orbit: the SPENVIS file repeats its period; the AP8MIN file stops at 400 MeV, so simulation "
-                  "energies above it receive no protons."),
+            ("p", orbit_note(data)),
             ("p", "Coverage: the (volume, nuclide) pairs below the step-3 activity threshold (about 0.9% of the "
-                  "out-of-belt activity in this run) were not simulated in step 4; rates are low by about that fraction."),
+                  "out-of-belt activity) were not simulated in step 4; rates are low by about that fraction."),
             ("p", "Geant4 data: decays follow Geant4's own decay data, including the known RadioactiveDecay6.1.2 "
                   "errors (Geant4 bug 2780 and related reports)."),
             ("p", "Statistics: the statistical error of the total rates is below 1e-3 (relative); single weak pairs "
-                  "are noisier."),
+                  "are noisier. The same step-4 spectra serve all orbits, so the ratios between orbits carry "
+                  "almost no statistical error."),
         ])
+
+
+def _fgt(f: dict, E: float) -> float | None:
+    """Orbit-mean F(>E) at a tabulated level, None if E is not one."""
+    L = f["levels_MeV"]
+    return f["F_mean"][L.index(E)] if E in L else None
+
+
+def _ratio(a, b) -> str:
+    return "–" if a is None or b in (None, 0) else f"{a / b:.3f}"
+
+
+def orbit_note(data: dict) -> str:
+    flux, e0 = data["flux"], data["summary"]["energies_MeV"]
+    parts = []
+    for lab, f in flux.items():
+        if f["emax_MeV"] < e0[1]:
+            parts.append(f"{lab} stops at {f['emax_MeV']:g} MeV, so protons above it are missing and the "
+                         f"{e0[1]:g} MeV simulation energy receives none")
+        else:
+            parts.append(f"{lab} reaches {f['emax_MeV']:g} MeV; protons above {e0[1]:g} MeV (the highest "
+                         f"simulation energy) are not included")
+    return ("Orbit: each SPENVIS file repeats its period. The flux time profile is F(>"
+            f"{flux[next(iter(flux))]['profile_emin_MeV']:g} MeV), the activating protons; the belt passages "
+            "are the steps with a non-zero total flux. " + "; ".join(parts) + ".")
 
 
 # ---------------------------------------------------------------------------
@@ -449,7 +577,10 @@ def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("activities", type=Path, help="activities.pkl from compute_activities.py")
-    p.add_argument("spenvis_file", type=Path, help="SPENVIS file used for the orbit")
+    p.add_argument("spenvis_files", type=Path, nargs="+",
+                   help="SPENVIS files, one per orbit or flux model (the first is the reference)")
+    p.add_argument("--labels", nargs="+", default=None,
+                   help="orbit labels (default: file names up to the first dot)")
     p.add_argument("--spectra-dir", type=Path, default=Path("result_postact"),
                    help="directory with spectra_<mode>.npz and the step-4 runs files")
     p.add_argument("--outdir", type=Path, default=Path("report_run"))
@@ -458,19 +589,33 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--name", default="cusp_activation_report", help="base name of the HTML and PDF files")
     args = p.parse_args(argv)
 
-    activities, spenvis = args.activities.resolve(), args.spenvis_file.resolve()
+    activities = args.activities.resolve()
+    spenvis_files = [f.resolve() for f in args.spenvis_files]
+    labels = args.labels or [f.name.split(".")[0] for f in spenvis_files]
+    if len(labels) != len(spenvis_files) or len(set(labels)) != len(labels):
+        sys.exit("ERROR: give one distinct label per SPENVIS file")
     spectra_dir, outdir = args.spectra_dir.resolve(), args.outdir.resolve()
     outdir.mkdir(parents=True, exist_ok=True)
 
-    print("Steps 6 and 8 ...")
-    run_steps(activities, spenvis, spectra_dir, outdir, args.modes, args.reuse)
-    print("Curves ...")
-    data = curves(outdir, spenvis, args.modes)
-    print("Per-pair activities and rates ...")
-    ps = pair_stats(activities, spenvis, spectra_dir, args.modes)
-    ps.to_csv(outdir / "pair_stats.csv", index=False)
-    data["tables"] = tables(ps, args.modes)
-    data["summary"] = summary(activities, spenvis, spectra_dir, args.modes, ps)
+    orbits, flux, all_ps = [], {}, []
+    for label, spenvis in zip(labels, spenvis_files):
+        odir = outdir / label
+        print(f"=== {label}: {spenvis.name}")
+        print("Steps 6 and 8 ...")
+        run_steps(activities, spenvis, spectra_dir, odir, args.modes, args.reuse)
+        print("Curves ...")
+        o = {"label": label, "spenvis": spenvis.name, **curves(odir, spenvis, args.modes)}
+        print("Per-pair activities and rates ...")
+        ps = pair_stats(activities, spenvis, spectra_dir, args.modes)
+        all_ps.append(ps.assign(orbit=label))
+        o["tables"] = tables(ps, args.modes)
+        orbits.append(o)
+        flux[label] = flux_data(activities, spenvis)
+    pd.concat(all_ps, ignore_index=True).to_csv(outdir / "pair_stats.csv", index=False)
+    data = {"summary": summary(activities, spectra_dir, args.modes,
+                               [{"label": o["label"], "spenvis": o["spenvis"]} for o in orbits]),
+            "flux": flux, "orbits": orbits}
+    data["summary"]["orbit_note"] = orbit_note(data)
     (outdir / "report_data.json").write_text(json.dumps(data, separators=(",", ":")))
 
     write_html(data, outdir / f"{args.name}.html")

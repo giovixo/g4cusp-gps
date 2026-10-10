@@ -258,7 +258,7 @@ df.groupby(level="isotope").sum()                 # summed over energies and vol
 
 Runs the Geant4 program `cusp-postactivation`, which decays each active nuclide in each volume and records the energy deposited in the scintillators, for every `(volume, isotope)` pair of `active_isotopes.pkl` (22,787 pairs for the CUSP run).
 
-- **Weights:** the steady-state out-of-belt mean activity A_p \[Bq\] of each pair, computed as in `average_spectrum.py` (primaries per step from the SPENVIS file, step-averaged kernel, lag weights of the out-of-belt steps). Their sum is the total steady-state out-of-belt activity.
+- **Weights:** the steady-state out-of-belt mean activity A_p \[Bq\] of each pair, computed as in `average_spectrum.py` (primaries per step from the SPENVIS file, step-averaged kernel, lag weights of the out-of-belt steps, flux profile F(>E_min)). Their sum is the total steady-state out-of-belt activity. The weights only balance the statistics: the hit lists per decay do not depend on the orbit, so step 4 is **not** rerun for a new orbit.
 - **Allocation:** N_p ∝ A_p (minimises the variance of the summed background for a fixed total), clipped to \[`--nmin`, `--nmax`\] and scaled (iterating with the clipping) to a total of about `--budget`, rounded to multiples of 100. Pairs with zero weight get `--nmin`. The summary lists the pairs at the limits and the top 20 pairs.
 - **Batches:** pairs in decreasing weight order, at most `--batch-size` pairs and `--batch-decays` decays per Geant4 process (`batch_NNNN.mac`, run with `-t` threads in a work directory that links the GDML files of the mass model, like `0_run.py`). A batch is complete when its `_runs.csv` lists all its pairs with the right number of decays and its macro is unchanged. Complete batches are skipped; an incomplete one is deleted and rerun (not with `--no-rerun`).
 
@@ -414,9 +414,9 @@ Computes the time history of the activation-induced count rate by convolving the
 C[j] = Σ_{k=0}^{j}  K_k · F[j-k] / F_mean,     K_k = (1/Δt) ∫_{kΔt}^{(k+1)Δt} R(τ) dτ
 ```
 
-evaluated via FFT. The step-averaged kernel K_k counts the decays within one step of the irradiation. Sampling R at the lags (k+1)Δt instead would lose them: a nuclide with mean life 9 s (Al26m) would get ~0 instead of its equilibrium rate, and one with 10 min about 95%. In long-term mode the SPENVIS flux is tiled over the requested duration, assuming periodic repetition.
+evaluated via FFT. F is the flux of the activating protons, F(>E_min) with E_min the lowest simulation energy (5 MeV for CUSP), interpolated log-log between the SPENVIS levels. Step 6 records E_min in `count_rate.dat` (`profile_emin_MeV:`) and `spectra.pkl`; `--profile-emin` overrides it, and older files without it fall back to the total flux with a warning. The total flux F(>0.1 MeV) would be wrong: protons below 5 MeV produce no activity and follow another profile along the orbit (AP8MIN 550 km: peak/mean 164 for the total flux, 63 above 5 MeV), which doubled the AP8MIN first-day peaks. The step-averaged kernel K_k counts the decays within one step of the irradiation. Sampling R at the lags (k+1)Δt instead would lose them: a nuclide with mean life 9 s (Al26m) would get ~0 instead of its equilibrium rate, and one with 10 min about 95%. In long-term mode the SPENVIS flux is tiled over the requested duration, assuming periodic repetition.
 
-**Out of belt:** a step is in the belt when the total flux (first SPENVIS column) is above `--belt-threshold` (default 0). The running average and the summary rates use the out-of-belt steps only; the all-step mean is printed for comparison.
+**Out of belt:** a step is in the belt when the total flux (first SPENVIS column, not the profile F(>E_min)) is above `--belt-threshold` (default 0). The running average and the summary rates use the out-of-belt steps only; the all-step mean is printed for comparison.
 
 **Inputs:** `count_rate.dat`, SPENVIS file. The spectra source and the energy band are those of step 6 (a different band needs a new step 6 run with `--emin`/`--emax`); if recorded in the header of `count_rate.dat` they are shown in the plot titles and copied into the header of `--save-dat`.\
 **Outputs:** time-history ASCII (`t_s`, `count_rate_cps`, `out_of_belt_avg_count_rate_cps`), plot
@@ -500,21 +500,27 @@ The energy axis and channel widths are read from `spectra.pkl` (attrs `edges_keV
 
 ### Report: `build_report.py`
 
-Builds an HTML page and a PDF on a pipeline run: for each event class (default `scat_single`,
-`abs_single`, `compton`) it runs steps 6 and 8 on the step-4 spectra (or reuses them with `--reuse`),
-computes the step-7 histories internally, and collects the first-day rate (60 s steps, belt passages
-marked), the 5-year out-of-belt mean (trailing 30-day window), the out-of-belt spectrum after one year,
-and the most active volumes and nuclides after 1 day, 1 month, 1 year and 5 years with their share of
-each event class.
+Builds an HTML page and a PDF on a pipeline run for one or more orbits (SPENVIS files; the first is the
+reference of the ratios). For each orbit and each event class (default `scat_single`, `abs_single`,
+`compton`) it runs steps 6 and 8 on the step-4 spectra (or reuses them with `--reuse`, unless they were
+written before the flux time profile was recorded), computes the step-7 histories internally, and collects
+the first-day rate (60 s steps, belt passages marked), the 5-year out-of-belt mean (trailing 30-day
+window), the out-of-belt spectrum after one year, and the most active volumes and nuclides after 1 day,
+1 month, 1 year and 5 years with their share of each event class. It also compares the orbits: their
+orbit-averaged proton spectra, the primaries per simulation energy and the time-profile statistics.
+
+Steps 0–4 do not depend on the orbit: **a new orbit or flux model needs only this script** (or steps 6–8).
 
 ```bash
 python build_report.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
+    AP9MEAN.AP9.output_mean_flux_550km_SSO.txt --labels AP8MIN AP9 \
     --spectra-dir result_postact --outdir report_run
 ```
 
 **Outputs** (in `--outdir`): `cusp_activation_report.html` (from `report_template.html`),
-`cusp_activation_report.pdf`, `report_data.json`, `pair_stats.csv`, and the step 6/8 outputs per mode.
-About 5 minutes in total.
+`cusp_activation_report.pdf`, `report_data.json`, `pair_stats.csv` (with an `orbit` column), and the step
+6/8 outputs in `<label>/<mode>/`. `--labels` defaults to the file names up to the first dot. About 5 minutes
+per orbit (2 with `--reuse`).
 
 ---
 
@@ -587,6 +593,8 @@ python average_spectrum.py output/spectra.pkl $SPENVIS --duration 3y \
 ```
 
 If the SPENVIS file tabulates the flux only up to an energy below the highest simulation energy (AP8: 400 MeV), step 6 clips the bands there and warns: protons above it are ignored.
+
+**A new orbit or flux model** needs only steps 6–8, or `build_report.py` with one or more SPENVIS files: steps 0–4 do not depend on the orbit.
 
 ---
 
