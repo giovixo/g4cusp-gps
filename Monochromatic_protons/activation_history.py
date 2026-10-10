@@ -97,6 +97,38 @@ def load_count_rate(path: str | Path) -> tuple[np.ndarray, np.ndarray]:
     return arr[:, 0], arr[:, 1]
 
 
+def count_rate_info(path: str | Path) -> dict:
+    """
+    Source and energy band of a count_rate.dat, from the 'source:', 'mode:' and
+    'band_keV:' header lines written by accumulate_spectra.py when it used a
+    spectra_<mode>.npz or a band.  Returns {} for the plain files, otherwise
+    {'source', 'mode', 'emin', 'emax', 'label'}; label is a short description
+    ('compton, 20-100 keV') for plot titles.
+    """
+    info: dict = {}
+    with open(path) as f:
+        for line in f:
+            if not line.startswith("#"):
+                break
+            key, _, val = line[1:].partition(":")
+            key, val = key.strip(), val.strip()
+            if key == "source":
+                info["source"] = val
+            elif key == "mode":
+                info["mode"] = val
+            elif key == "band_keV":
+                lo, hi = val.split()
+                info["emin"] = None if lo == "None" else float(lo)
+                info["emax"] = None if hi == "None" else float(hi)
+    if info:
+        lo, hi = info.get("emin"), info.get("emax")
+        band = ("" if lo is None and hi is None else
+                f"{lo:g}-{hi:g} keV" if lo is not None and hi is not None else
+                f">= {lo:g} keV" if lo is not None else f"<= {hi:g} keV")
+        info["label"] = ", ".join(x for x in (info.get("mode"), band) if x)
+    return info
+
+
 def _read_total_flux(spenvis_file: str | Path) -> tuple[np.ndarray, np.ndarray]:
     """
     Read per-timestep total integral flux (F > E_min, first flux column) and MJD
@@ -420,6 +452,7 @@ def plot_history(
     in_belt:   np.ndarray | None = None,
     title:     str = "Activation-induced background rate vs orbital time",
     save_path: str | Path | None = None,
+    label:     str = "",
 ) -> None:
     """
     Plot the single-orbit activation count rate vs time (log y-axis).
@@ -428,6 +461,7 @@ def plot_history(
     Parameters
     ----------
     in_belt : in-belt steps (shaded).  If None, no shading is added.
+    label   : spectra mode and energy band of the count rate, added to the title.
     """
     dt = float(np.median(np.diff(t_orb))) if len(t_orb) > 1 else 60.0
 
@@ -450,7 +484,7 @@ def plot_history(
     ax.set_xlim(t_orb[0] - dt / 2.0, t_orb[-1] + dt / 2.0)
     ax.grid(True, which="both", linestyle="--", alpha=0.4, zorder=0)
     ax.legend(fontsize=9, loc="upper left")
-    ax.set_title(title)
+    ax.set_title(title + (f" [{label}]" if label else ""))
     fig.tight_layout()
     _save_or_show(fig, save_path, "History plot")
 
@@ -462,6 +496,7 @@ def plot_long_term_history(
     avg_window_s:  float,
     title:         str = "Long-term activation-induced background rate",
     save_path:     str | Path | None = None,
+    label:         str = "",
 ) -> None:
     """
     Two-panel log-log plot of the long-term activation history.
@@ -504,7 +539,7 @@ def plot_long_term_history(
     ax1.set_ylabel("Count rate (counts / s)")
     ax1.grid(True, which="both", linestyle="--", alpha=0.35)
     ax1.legend(fontsize=9, loc="upper left")
-    ax1.set_title(title)
+    ax1.set_title(title + (f" [{label}]" if label else ""))
 
     # ---- Bottom panel: average only, linear x in days -------------------
     if mask_avg.any():
@@ -542,7 +577,9 @@ def main(argv: list[str] | None = None) -> None:
         description="Activation-induced background rate history.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("count_rate",   help="count_rate.dat from accumulate_spectra.py")
+    p.add_argument("count_rate",   help="count_rate.dat from accumulate_spectra.py "
+                                        "(its spectra source and energy band, set there "
+                                        "with --spectra-file/--emin/--emax, carry over)")
     p.add_argument("spenvis_file", help="SPENVIS AP9/AE9 output file")
     p.add_argument("--in-belt-only", action="store_true",
                    help="Use in-belt mean flux for normalisation.")
@@ -561,6 +598,12 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--no-flux-overlay", action="store_true",
                    help="Omit orbital flux overlay (single-orbit mode only).")
     args = p.parse_args(argv)
+
+    info = count_rate_info(args.count_rate)
+    if info:
+        print(f"Count rate: {info['label'] or 'whole axis'} from {info.get('source')}")
+    label = info.get("label", "")
+    dat_note = f"\nsource: {info['source']}\nmode: {info['mode']}\nband_keV: {info.get('emin')} {info.get('emax')}" if info else ""
 
     if args.duration is not None:
         # ---- Long-term mode ------------------------------------------------
@@ -589,7 +632,7 @@ def main(argv: list[str] | None = None) -> None:
         if args.save_dat:
             np.savetxt(args.save_dat,
                        np.column_stack([t_total, C, C_avg]),
-                       header="t_s   count_rate_cps   out_of_belt_avg_count_rate_cps",
+                       header="t_s   count_rate_cps   out_of_belt_avg_count_rate_cps" + dat_note,
                        fmt="%.6e")
             print(f"  Time history saved to {args.save_dat}")
 
@@ -597,6 +640,7 @@ def main(argv: list[str] | None = None) -> None:
             t_total, C, C_avg,
             avg_window_s=avg_window_s,
             save_path=args.save_plot,
+            label=label,
         )
 
     else:
@@ -616,12 +660,12 @@ def main(argv: list[str] | None = None) -> None:
         if args.save_dat:
             np.savetxt(args.save_dat,
                        np.column_stack([t_orb, C]),
-                       header="t_orb_s   count_rate_cps",
+                       header="t_orb_s   count_rate_cps" + dat_note,
                        fmt="%.6e")
             print(f"  Time history saved to {args.save_dat}")
 
         plot_history(t_orb, C, in_belt=None if args.no_flux_overlay else ~out,
-                     save_path=args.save_plot)
+                     save_path=args.save_plot, label=label)
 
 
 if __name__ == "__main__":

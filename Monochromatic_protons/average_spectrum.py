@@ -30,7 +30,9 @@ end of the decay-time grid of compute_activities.py (1e9 s by default).
 
 Per-isotope decomposition
 -------------------------
-If activities_pkl and spectra_dir are given, the activity of each (volume,
+If activities_pkl and a spectra source are given (--spectra-dir with the .dat
+files, or --spectra-file with a spectra_<mode>.npz from build_spectra.py; the
+same source and mode as in accumulate_spectra.py), the activity of each (volume,
 isotope) after one step, A_{v,i}(tau) = sum_j N_j a_{j,v,i}(tau), is averaged
 in the same way and multiplied by its spectrum per decay F_{v,i}(E):
 
@@ -50,6 +52,16 @@ Usage (CLI)
         --activities output/activities.pkl \\
         --spectra-dir result_spectra/ \\
         --save-plot avg_spectrum.pdf
+
+    # spectra_<mode>.npz source; count rate in 20-100 keV (default: the band
+    # recorded in spectra.pkl, i.e. the one given to accumulate_spectra.py)
+    python average_spectrum.py output/spectra.pkl AP9MEAN.txt \\
+        --activities output/activities.pkl \\
+        --spectra-file result_postact/spectra_compton.npz --emin 20 --emax 100
+
+The energy axis is that of spectra.pkl (attrs 'edges_keV'; the S-mode axis for
+files written before the attr existed).  --emin/--emax only set the band of the
+quoted count rate and the x limits of the plot; the spectrum keeps all channels.
 
 Usage (library)
 ---------------
@@ -81,8 +93,8 @@ except ImportError:
     sys.exit("ERROR: activation_history.py not found.")
 
 try:
-    from accumulate_spectra import (load_outputs, EN_S, DELTA_E,
-                                    load_spectrum, spectrum_path)
+    from accumulate_spectra import (load_outputs, EN_S, DELTA_E, open_spectra,
+                                    band_mask, band_integral, band_label)
     from compute_activities import load_outputs as load_activities, times_of
 except ImportError:
     sys.exit("ERROR: accumulate_spectra.py or compute_activities.py not found.")
@@ -129,7 +141,11 @@ def compute_average_spectrum(
     duration_s:      float | None = None,
     all_orbit:       bool  = False,
     belt_threshold:  float = 0.0,
-) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray] | None]:
+    spectra_file:    str | Path | None = None,
+    emin:            float | None = None,
+    emax:            float | None = None,
+    return_info:     bool  = False,
+):
     """
     Compute the steady-state out-of-belt (or, with all_orbit, orbit-averaged)
     background spectrum.
@@ -141,16 +157,23 @@ def compute_average_spectrum(
     activities_pkl  : activities.pkl from compute_activities.py (optional;
                       required for per-isotope decomposition)
     spectra_dir     : directory with {volume}_{isotope}_S-mode.dat files
-                      (optional; required for per-isotope decomposition)
+                      (optional; with activities_pkl, for the per-isotope
+                      decomposition)
+    spectra_file    : or a spectra_<mode>.npz from build_spectra.py (the same
+                      one as in accumulate_spectra.py)
     duration_s      : mission duration T [s] (default: end of the time grid)
     all_orbit       : average over all steps instead of the out-of-belt ones
     belt_threshold  : flux above which a step is in the belt [p/cm²/s]
+    emin, emax      : band [keV] of the quoted count rate (default: the band
+                      recorded in spectra.pkl, normally the whole axis)
 
     Returns
     -------
     en_s        : detector energy axis [keV]
     avg_spec    : average spectrum [counts/s/keV]
     iso_contribs: dict {isotope_name: avg_spectrum_array} or None
+    With return_info a fourth item: dict with 'widths' [keV], 'emin', 'emax',
+    'rate' (counts/s in the band), 'source', 'mode'.
     """
     spectra_pkl = Path(spectra_pkl)
 
@@ -168,6 +191,22 @@ def compute_average_spectrum(
     S_mat = spectra_df.to_numpy(dtype=float)
     print(f"Spectra: {S_mat.shape[0]} time points × {S_mat.shape[1]} channels, "
           f"decay times {tau[0]:.2e} – {tau[-1]:.2e} s")
+
+    # ---- Energy axis and band ------------------------------------------------
+    if attrs.get("spectra_kind", "dat") == "dat" and S_mat.shape[1] == len(EN_S):
+        en_s, widths = EN_S, np.full(len(EN_S), DELTA_E)
+    else:
+        edges = np.asarray(attrs["edges_keV"], dtype=float)
+        en_s, widths = 0.5 * (edges[:-1] + edges[1:]), np.diff(edges)
+    if len(en_s) != S_mat.shape[1]:
+        sys.exit(f"ERROR: {spectra_pkl} has {S_mat.shape[1]} channels but its axis "
+                 f"has {len(en_s)}.")
+    emin = attrs.get("emin_keV") if emin is None else emin
+    emax = attrs.get("emax_keV") if emax is None else emax
+    mask = band_mask(en_s, emin, emax)
+    src_name, src_mode = attrs.get("spectra_source", ""), attrs.get("spectra_mode", "")
+    if src_name:
+        print(f"Spectra source: {src_name}" + (f" (mode {src_mode})" if src_mode else ""))
 
     # ---- Orbit flux and lag weights ------------------------------------------
     flux, _, F_mean, dt = _prepare_flux_and_norm(spenvis_file,
@@ -193,14 +232,20 @@ def compute_average_spectrum(
 
     # ---- Total average spectrum --------------------------------------------
     avg_spec = average(S_mat)
-    print(f"Average total count rate: {avg_spec.sum() * DELTA_E:.4e} counts/s")
+    rate = float(band_integral(avg_spec, widths, mask))
+    print(f"Average total count rate"
+          + (f" ({band_label(emin, emax)})" if band_label(emin, emax) else "")
+          + f": {rate:.4e} counts/s")
 
     # ---- Per-isotope decomposition (optional) ------------------------------
     iso_contribs: dict[str, np.ndarray] | None = None
 
-    if activities_pkl is not None and spectra_dir is not None:
+    if activities_pkl is not None and (spectra_dir is not None or spectra_file is not None):
         activities_pkl = Path(activities_pkl)
-        spectra_dir    = Path(spectra_dir)
+        src = open_spectra(spectra_dir if spectra_file is None else None, spectra_file)
+        if len(src.energy) != len(en_s) or not np.allclose(src.energy, en_s, atol=1e-3):
+            sys.exit(f"ERROR: the energy axis of {src.source} differs from that of "
+                     f"{spectra_pkl.name}.")
         print("Computing per-isotope contributions...")
 
         acts_df, _ = load_activities(activities_pkl.parent,
@@ -221,7 +266,7 @@ def compute_average_spectrum(
         for (volume, isotope), a in zip(pair_act.index, pair_avg):
             if a <= 0:
                 continue
-            spec = load_spectrum(spectrum_path(spectra_dir, volume, isotope))
+            spec = src.get(volume, isotope)
             if spec is None:
                 continue
             if isotope in iso_acc:
@@ -232,7 +277,11 @@ def compute_average_spectrum(
         iso_contribs = iso_acc
         print(f"  {len(iso_contribs)} isotopes with spectral contributions.")
 
-    return EN_S, avg_spec, iso_contribs
+    if return_info:
+        return en_s, avg_spec, iso_contribs, {
+            "widths": widths, "emin": emin, "emax": emax, "rate": rate,
+            "source": src_name, "mode": src_mode}
+    return en_s, avg_spec, iso_contribs
 
 
 # ---------------------------------------------------------------------------
@@ -316,6 +365,8 @@ def find_prominent_peaks(
     min_sep_dex:     float = 0.10,
     window_keV:      float = 5.0,
     cache_file:      str | Path = ".gamma_line_cache.pkl",
+    en_s:            np.ndarray | None = None,
+    band:            tuple[float | None, float | None] = (None, None),
 ) -> list[dict]:
     """
     Find the N tallest, well-separated peaks and identify the responsible isotope.
@@ -336,26 +387,33 @@ def find_prominent_peaks(
     min_sep_dex  : minimum peak separation in log10(energy) decades
     window_keV   : ±energy window for the gamma-line database query [keV]
     cache_file   : path for caching database responses between runs
+    en_s         : energy axis of avg_spec [keV] (default: the S-mode axis)
+    band         : (emin, emax) [keV]; only peaks inside it are considered
 
     Returns a list of dicts with keys:
-        channel  : index into EN_S
+        channel  : index into the energy axis
         energy   : keV
         value    : counts/s/keV at the peak
         isotope  : identified isotope name, 'annihilation', or None
         fraction : fraction of peak value from the identified isotope
     """
     # ---- Step 1: find peaks in total spectrum ----------------------------
+    EN_S_ = EN_S if en_s is None else np.asarray(en_s)
     log_s = np.log10(np.where(avg_spec > 0, avg_spec, 1e-40))
     peaks, _ = find_peaks(log_s, prominence=prominence, width=1, distance=3)
     if len(peaks) == 0:
         return []
 
+    if band != (None, None):
+        peaks = peaks[band_mask(EN_S_, *band)[peaks]]
+        if len(peaks) == 0:
+            return []
     by_value = peaks[np.argsort(avg_spec[peaks])[::-1]]
 
     accepted: list[int] = []
     for ch in by_value:
-        e = EN_S[ch]
-        too_close = any(abs(np.log10(e) - np.log10(EN_S[a])) < min_sep_dex
+        e = EN_S_[ch]
+        too_close = any(abs(np.log10(e) - np.log10(EN_S_[a])) < min_sep_dex
                         for a in accepted)
         if not too_close:
             accepted.append(ch)
@@ -365,7 +423,7 @@ def find_prominent_peaks(
     # ---- Step 2-4: identify isotope for each peak -----------------------
     results = []
     for ch in sorted(accepted):
-        e_peak = EN_S[ch]
+        e_peak = EN_S_[ch]
         info: dict = {
             "channel":  ch,
             "energy":   e_peak,
@@ -446,6 +504,10 @@ def plot_average_spectrum(
     cache_file:   str | Path = ".gamma_line_cache.pkl",
     title:        str   = "Steady-state out-of-belt background spectrum",
     save_path:    str | Path | None = None,
+    widths:       np.ndarray | None = None,
+    emin:         float | None = None,
+    emax:         float | None = None,
+    xscale:       str   = "log",
 ) -> None:
     """
     Publication-quality log-log plot of the orbit-averaged spectrum.
@@ -454,15 +516,24 @@ def plot_average_spectrum(
     isotope name and energy in keV.  An arrow connects the label to the peak.
 
     Figure is sized for a single journal column (3.5 in wide).
+
+    widths     : channel widths [keV] for the quoted count rate (default: the
+                 2 keV of the S-mode axis)
+    emin, emax : energy band [keV] of the count rate, also the x limits and the
+                 range where peaks are labelled (default: the whole axis)
+    xscale     : 'log' or 'linear' energy axis
     """
     peaks_info = find_prominent_peaks(
         avg_spec, iso_contribs, n_peaks=n_label,
         prominence=prominence, min_sep_dex=min_sep_dex,
         window_keV=window_keV, cache_file=cache_file,
+        en_s=en_s, band=(emin, emax),
     )
 
     pos        = avg_spec > 0
-    total_rate = avg_spec.sum() * DELTA_E
+    w          = np.full(len(en_s), DELTA_E) if widths is None else np.asarray(widths)
+    total_rate = float(band_integral(avg_spec, w, band_mask(en_s, emin, emax)))
+    blab       = band_label(emin, emax)
 
     # ---- Figure ------------------------------------------------------------
     fig, ax = plt.subplots(figsize=(3.5, 3.0))
@@ -471,7 +542,8 @@ def plot_average_spectrum(
     ax.plot(en_s[pos], avg_spec[pos],
             drawstyle="steps-mid",
             color="#2166ac", linewidth=0.9, zorder=3,
-            label=rf"$\langle S \rangle$  ({total_rate:.2e} cts/s)")
+            label=rf"$\langle S \rangle$  ({total_rate:.2e} cts/s"
+                  + (f", {blab}" if blab else "") + ")")
 
     # Per-isotope contributions as lighter fills (optional, if available)
     if iso_contribs and len(peaks_info) > 0:
@@ -499,8 +571,12 @@ def plot_average_spectrum(
     # Alternate label positions above/below the spectrum to reduce overlap.
     peaks_info_sorted = sorted(peaks_info, key=lambda p: p["energy"])
 
-    ax.set_xscale("log")
+    ax.set_xscale(xscale)
     ax.set_yscale("log")
+    if emin is not None or emax is not None:
+        ax.set_xlim(emin if emin is not None else (max(en_s[0], 1.0) if xscale == "log"
+                                                   else en_s[0]),
+                    emax if emax is not None else en_s[-1])
 
     # Two rows of label positions in log-y space: upper and lower band
     upper_fracs = np.linspace(0.80, 0.95, (len(peaks_info_sorted) + 1) // 2)
@@ -585,7 +661,18 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--activities",    default=None, metavar="PKL",
                    help="activities.pkl for per-isotope line identification.")
     p.add_argument("--spectra-dir",   default=None, metavar="DIR",
-                   help="result_spectra/ directory for per-isotope decomposition.")
+                   help="result_spectra/ directory (.dat files) for the per-isotope "
+                        "decomposition.")
+    p.add_argument("--spectra-file",  default=None, metavar="NPZ",
+                   help="spectra_<mode>.npz from build_spectra.py instead of "
+                        "--spectra-dir (the one used in accumulate_spectra.py).")
+    p.add_argument("--emin", type=float, default=None, metavar="KEV",
+                   help="Lower edge of the energy band of the count rate and plot "
+                        "[keV] (default: the band recorded in spectra.pkl).")
+    p.add_argument("--emax", type=float, default=None, metavar="KEV",
+                   help="Upper edge of the energy band [keV].")
+    p.add_argument("--xscale", choices=["log", "linear"], default="log",
+                   help="Energy axis of the plot.")
     p.add_argument("--n-label",   type=int, default=5, metavar="N",
                    help="Number of peaks to label.")
     p.add_argument("--prominence", type=float, default=0.5,
@@ -600,7 +687,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--save-plot", default=None, metavar="PATH")
     args = p.parse_args(argv)
 
-    en_s, avg_spec, iso_contribs = compute_average_spectrum(
+    en_s, avg_spec, iso_contribs, info = compute_average_spectrum(
         spectra_pkl=args.spectra_pkl,
         spenvis_file=args.spenvis_file,
         activities_pkl=args.activities,
@@ -608,6 +695,10 @@ def main(argv: list[str] | None = None) -> None:
         duration_s=_parse_duration(args.duration) if args.duration else None,
         all_orbit=args.all_orbit,
         belt_threshold=args.belt_threshold,
+        spectra_file=args.spectra_file,
+        emin=args.emin,
+        emax=args.emax,
+        return_info=True,
     )
 
     if args.save_dat:
@@ -621,6 +712,10 @@ def main(argv: list[str] | None = None) -> None:
         window_keV=args.window,
         cache_file=args.cache,
         save_path=args.save_plot,
+        widths=info["widths"],
+        emin=info["emin"],
+        emax=info["emax"],
+        xscale=args.xscale,
     )
 
 

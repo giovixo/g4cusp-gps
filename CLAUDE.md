@@ -63,6 +63,7 @@ activation background spectrum. It follows the method of Campana et al. 2026 (Ex
 | 2 | `build_decay_chains.py` | `DecayChains/` |
 | 3 | `compute_activities.py` | `output/activities.pkl`, `active_isotopes.pkl`, … |
 | 4 | `run_postactivation.py` + `cusp-postactivation` | `result_postact/` (hit lists per decay) |
+| 4b | `build_spectra.py` (event selection) + `pair_spectra.py` (format) | `result_postact/spectra_<mode>.npz` |
 | 5 | `spenvis_parser.py` | orbit flux plots (optional) |
 | 6 | `accumulate_spectra.py` | `spectra.pkl`, `count_rate.dat` |
 | 7 | `activation_history.py` | rate history, out-of-belt running average |
@@ -70,6 +71,11 @@ activation background spectrum. It follows the method of Campana et al. 2026 (Ex
 
 - A production set (17 energies × 1e8 protons, all cores) takes about 4 h; run it in the background
   under `caffeinate -i`. `0_run.py` skips energies already done with the same nprim unless `--overwrite` is given.
+- Step 4 production (2026-10-10): 3e8 decays, N ∝ out-of-belt activity, 22,787 pairs; the 2472 pairs below the
+  step-3 threshold (~0.9% of the activity) were deliberately not simulated. Event selection in `build_spectra.py`
+  is provisional (thr 5 keV plastic / 20 keV GAGG, 500 ns window, no resolution or quenching; modes
+  `scat_single`, `abs_single`, `compton` = exactly 1+1, `any`). Steps 6 and 8 read it with
+  `--spectra-file result_postact/spectra_<mode>.npz` and `--emin/--emax`.
 - The user is mostly interested in **out-of-belt** results: averages in steps 7–8 use out-of-belt steps
   by default (`--belt-threshold`, `--all-orbit`).
 - SPENVIS files (`AP[89]*.txt`) are git-ignored. The current one,

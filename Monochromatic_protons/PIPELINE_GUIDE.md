@@ -35,7 +35,8 @@ This pipeline estimates the activation-induced detector background in a space in
         |                                  (run_postactivation.py)                    │
         |                                           |                                │
         ▼                                           ▼                                │
- 6. accumulate_spectra.py  ←── result_spectra/{vol}_{iso}_S-mode.dat                 │
+ 6. accumulate_spectra.py  ←── spectra_<mode>.npz (build_spectra.py)                 │
+                           ←── or result_spectra/{vol}_{iso}_S-mode.dat (old)         │
                            ←── 5. SPENVIS parser  ←──--------------------------------┘
 						          spenvis_parser.py
     → spectra.pkl
@@ -355,8 +356,13 @@ Computes the background spectrum and count rate at each decay time after **one S
 - Activities are summed over energies for each (volume, isotope) and multiplied by its spectrum per decay (paper Eq. 6).
 - `--threshold` (default 0) drops (volume, isotope) activities after the single step that are not above it. It is only a speed-up: the dropped contributions add up over many steps in steps 7 and 8.
 
-**Inputs:** `activities.pkl`, SPENVIS file, `result_spectra/*.dat`\
-**Outputs:** `spectra.pkl` (with the normalisation in its attrs), `count_rate.dat`, plots
+- **Spectra source** (one of the two; the energy axis, the channel widths and the spectra then come from it):
+  - `--spectra-file spectra_<mode>.npz`: the per-pair spectra built from the step-4 hit lists by `build_spectra.py` (one file per event class: `scat_single`, `abs_single`, `compton`, `any`; format in `pair_spectra.py`). The default axis is 0–2000 keV in 1 keV bins, but whatever the file holds is used.
+  - `--spectra-dir DIR` (default `result_spectra`): the older HERMES-style `.dat` files on the fixed S-mode axis, see below.
+- **Count-rate band:** `--emin`/`--emax` \[keV\] restrict the count rate to the channels whose centres lie in the band: R = Σ spectrum × channel width. The default is the whole axis. The spectra in `spectra.pkl` always keep all channels. Pairs missing from the spectra source are skipped (with a warning listing them).
+
+**Inputs:** `activities.pkl`, SPENVIS file, `spectra_<mode>.npz` or `result_spectra/*.dat`\
+**Outputs:** `spectra.pkl` (with the normalisation, the spectra source and the band in its attrs), `count_rate.dat`, plots
 
 ```bash
 python accumulate_spectra.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
@@ -364,9 +370,14 @@ python accumulate_spectra.py output/activities.pkl AP8MIN.AP8.output_mean_flux_5
     --outdir output/ \
     --save-plot count_rate.pdf \
     --save-spectra spectra.pdf
+
+# spectra_<mode>.npz source, count rate in 20-100 keV, linear energy axis in the plot
+python accumulate_spectra.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
+    --spectra-file result_postact/spectra_compton.npz --emin 20 --emax 100 \
+    --outdir output_compton/ --xscale linear --save-spectra spectra.pdf
 ```
 
-**Spectrum file naming convention:**
+**`.dat` spectrum file naming convention:**
 
 ```
 result_spectra/{volume}_{isotope}_S-mode.dat
@@ -381,9 +392,9 @@ en_s = binning_S[:-1] + np.diff(binning_S / 2.)   # 2047 centres
 
 **Output structure:**
 
-`spectra.pkl` — DataFrame indexed by decay time \[s\], columns = energy channels. Values are total background spectrum \[counts/s/keV\] at each time. `attrs`: `timestep_s`, `duty` (1, or the in-belt fraction with `--in-belt-only`), `beam_area_cm2`, `nprim_per_step` (`{E: N_j}`), `in_belt_only`, `activity_threshold`.
+`spectra.pkl` — DataFrame indexed by decay time \[s\], columns = energy channel centres \[keV\] (formatted `%.4f`). Values are total background spectrum \[counts/s/keV\] at each time. `attrs`: `timestep_s`, `duty` (1, or the in-belt fraction with `--in-belt-only`), `beam_area_cm2`, `nprim_per_step` (`{E: N_j}`), `in_belt_only`, `activity_threshold`, `spectra_source` (file or directory), `spectra_mode` (`''` for `.dat`), `spectra_kind` (`npz` or `dat`), `edges_keV` (channel edges), `emin_keV`/`emax_keV` (band of the count rate, `None` = whole axis).
 
-`count_rate.dat` — two-column ASCII: `time_s count_rate_cps`.
+`count_rate.dat` — two-column ASCII: `time_s count_rate_cps`, the spectrum integrated over the band. With a `.npz` source or a band, header lines `source:`, `mode:` and `band_keV: <emin> <emax>` record them (steps 7 and 8 read them).
 
 ```python
 from accumulate_spectra import load_outputs
@@ -407,7 +418,7 @@ evaluated via FFT. The step-averaged kernel K_k counts the decays within one ste
 
 **Out of belt:** a step is in the belt when the total flux (first SPENVIS column) is above `--belt-threshold` (default 0). The running average and the summary rates use the out-of-belt steps only; the all-step mean is printed for comparison.
 
-**Inputs:** `count_rate.dat`, SPENVIS file\
+**Inputs:** `count_rate.dat`, SPENVIS file. The spectra source and the energy band are those of step 6 (a different band needs a new step 6 run with `--emin`/`--emax`); if recorded in the header of `count_rate.dat` they are shown in the plot titles and copied into the header of `--save-dat`.\
 **Outputs:** time-history ASCII (`t_s`, `count_rate_cps`, `out_of_belt_avg_count_rate_cps`), plot
 
 ```bash
@@ -445,7 +456,7 @@ Line identification pipeline for each peak:
 4. Pick the largest contributor among the database-confirmed candidates
 
 **Inputs:** `spectra.pkl`, SPENVIS file\
-**Optional:** `activities.pkl`, `result_spectra/` (for line identification)\
+**Optional:** `activities.pkl` and the spectra source of step 6 (`--spectra-file` or `--spectra-dir`), for line identification\
 **Outputs:** average spectrum ASCII, publication-quality plot
 
 ```bash
@@ -457,7 +468,14 @@ python average_spectrum.py output/spectra.pkl AP8MIN.AP8.output_mean_flux_550km_
     --window 5 \
     --save-plot avg_spectrum.pdf \
     --save-dat avg_spectrum.dat
+
+# spectra_<mode>.npz source (the same file as in step 6), rate quoted in 20-100 keV
+python average_spectrum.py output_compton/spectra.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt \
+    --activities output/activities.pkl \
+    --spectra-file result_postact/spectra_compton.npz --emin 20 --emax 100
 ```
+
+The energy axis and channel widths are read from `spectra.pkl` (attrs `edges_keV`; the S-mode axis for older files), and the per-isotope spectra must be on the same axis. Peaks are searched, labelled and (with `--emin`/`--emax`) plotted only inside the band.
 
 **Key arguments:**
 
@@ -467,7 +485,10 @@ python average_spectrum.py output/spectra.pkl AP8MIN.AP8.output_mean_flux_550km_
 | `--all-orbit` | off | Average over all steps instead of the out-of-belt ones |
 | `--belt-threshold` | `0` p/cm²/s | Total flux above which a step is in the belt |
 | `--activities` | — | For per-isotope line identification |
-| `--spectra-dir` | — | For per-isotope line identification |
+| `--spectra-dir` | — | `.dat` directory, for per-isotope line identification |
+| `--spectra-file` | — | `spectra_<mode>.npz` instead of `--spectra-dir` |
+| `--emin`, `--emax` | band of `spectra.pkl` (whole axis) | Band \[keV\] of the quoted count rate, the plot limits and the peak search |
+| `--xscale` | `log` | `log` or `linear` energy axis of the plot |
 | `--n-label` | `5` | Number of peaks to label |
 | `--prominence` | `0.5` | Min log₁₀-prominence for peak detection |
 | `--min-sep` | `0.10` dex | Min peak separation in log₁₀(E) decades |
@@ -494,7 +515,8 @@ The source geometry and the simulation energies are recorded once, by `0_run.py`
 | `active_isotopes.pkl` | Python pickle (dict) | `compute_activities` | (reference) |
 | `spectra.pkl` | pandas pickle | `accumulate_spectra` | `average_spectrum` |
 | `count_rate.dat` | 2-col ASCII | `accumulate_spectra` | `activation_history`, `average_spectrum` |
-| `result_spectra/*.dat` | ASCII (2047 values) | Geant4 simulation | `accumulate_spectra`, `average_spectrum` |
+| `spectra_<mode>.npz` | npz (sparse counts per pair; `pair_spectra.py`) | `build_spectra` | `accumulate_spectra`, `average_spectrum` |
+| `result_spectra/*.dat` | ASCII (2047 values), older HERMES-style | external Geant4 code | `accumulate_spectra`, `average_spectrum` |
 | `.gamma_line_cache.pkl` | Python pickle | `average_spectrum` | `average_spectrum` (cache) |
 
 ---
@@ -523,6 +545,7 @@ python compute_activities.py results.pkl --chains DecayChains/ --outdir output/ 
 python spenvis_parser.py $SPENVIS --R 13 --thetamax 90
 
 # 6. Spectra and count rate after one step at the mean flux
+#    (--spectra-file result_postact/spectra_<mode>.npz [--emin 20 --emax 100] replaces --spectra-dir)
 python accumulate_spectra.py output/activities.pkl $SPENVIS \
     --spectra-dir result_spectra/ --outdir output/
 

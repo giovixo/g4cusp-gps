@@ -29,18 +29,28 @@ Inputs
 ------
   activities.pkl      from compute_activities.py
   SPENVIS file        AP9/AE9 integral flux along the orbit (dt and mean flux)
-  result_spectra/{volume}_{isotope}_S-mode.dat
-                      detector spectrum per decay, one value per channel
+  detector spectra per decay [counts/keV/decay], from one of two sources:
+    --spectra-dir DIR    result_spectra/{volume}_{isotope}_S-mode.dat, one value
+                         per channel of the fixed S-mode axis (2047 channels,
+                         18-4112 keV, 2 keV wide) -- the default;
+    --spectra-file FILE  spectra_<mode>.npz from build_spectra.py (modes
+                         scat_single, abs_single, compton, any); the energy axis
+                         (default 0-2000 keV, 1 keV bins) comes from the file.
 
 Output
 ------
   spectra.pkl / .parquet
-      DataFrame: index time_s, columns = detector channels [keV].  Spectrum
-      [counts/s/keV] at each decay time.  attrs: 'timestep_s', 'duty',
+      DataFrame: index time_s, columns = detector channel centres [keV].
+      Spectrum [counts/s/keV] at each decay time.  attrs: 'timestep_s', 'duty',
       'beam_area_cm2', 'nprim_per_step' ({E: N_j}), 'in_belt_only',
-      'activity_threshold'.
+      'activity_threshold', and the spectra source: 'spectra_source' (file or
+      directory), 'spectra_mode', 'edges_keV' (channel edges), 'emin_keV',
+      'emax_keV' (band of the count rate; None = whole axis).
   count_rate.dat
-      Two-column ASCII: time_s  total_count_rate [counts/s]
+      Two-column ASCII: time_s  count_rate [counts/s], the spectrum integrated
+      over the band (sum of spectrum x channel width over the channels whose
+      centres lie in [emin, emax]; default the whole axis).  With a spectra file
+      or a band, header lines 'source:', 'mode:' and 'band_keV:' record them.
 
 Usage (CLI)
 -----------
@@ -48,13 +58,19 @@ Usage (CLI)
     python accumulate_spectra.py output/activities.pkl AP9MEAN.txt \\
         --spectra-dir result_spectra/ --outdir output/ --save-plot count_rate.pdf
 
+    # spectra_<mode>.npz from build_spectra.py, count rate in 20-100 keV
+    python accumulate_spectra.py output/activities.pkl AP9MEAN.txt \\
+        --spectra-file result_postact/spectra_compton.npz --emin 20 --emax 100 \\
+        --outdir output_compton/
+
 Usage (library)
 ---------------
     from accumulate_spectra import accumulate
 
     spectra_df, count_rate = accumulate(
         "output/activities.pkl", "AP9MEAN.txt",
-        spectra_dir="result_spectra/",
+        spectra_dir="result_spectra/",          # or spectra_file="spectra_compton.npz"
+        emin=20.0, emax=100.0,                  # optional band of the count rate
     )
 """
 
@@ -149,6 +165,92 @@ def spectrum_path(
     mode:        str = "S-mode",
 ) -> Path:
     return spectra_dir / f"{volume}_{isotope}_{mode}.dat"
+
+
+# ---------------------------------------------------------------------------
+# Spectra source: the .dat files (fixed S-mode axis) or a spectra_<mode>.npz
+# ---------------------------------------------------------------------------
+
+class SpectraSource:
+    """
+    Detector spectra per decay of the (volume, isotope) pairs, from either
+    source, with the energy axis they are tabulated on.
+
+    energy  : channel centres [keV]
+    widths  : channel widths [keV]
+    edges   : channel edges [keV] (len(energy) + 1)
+    get(volume, isotope) -> counts/keV/decay array, or None if absent
+    kind    : 'dat' or 'npz';  source : path of the file or directory;
+    mode    : event class of an npz file, '' for the .dat files
+    """
+
+    def __init__(self, spectra_dir=None, spectra_file=None):
+        if spectra_file is not None and spectra_dir is not None:
+            raise ValueError("Give either spectra_dir or spectra_file, not both.")
+        if spectra_file is not None:
+            from pair_spectra import load_pair_spectra
+            self._lib = load_pair_spectra(spectra_file)
+            self.kind, self.source = "npz", str(spectra_file)
+            self.mode = self._lib.mode
+            self.energy = self._lib.centres
+            self.widths = self._lib.widths
+            self.edges = self._lib.edges
+            self._get = self._lib.spectrum
+        else:
+            d = Path("result_spectra" if spectra_dir is None else spectra_dir)
+            self.kind, self.source, self.mode = "dat", str(d), ""
+            self.energy = EN_S
+            self.widths = np.full(N_CHANNELS, DELTA_E)
+            self.edges = np.concatenate([EN_S - DELTA_E / 2, [EN_S[-1] + DELTA_E / 2]])
+            self._get = lambda v, i: load_spectrum(spectrum_path(d, v, i))
+
+    def get(self, volume: str, isotope: str) -> np.ndarray | None:
+        return self._get(volume, isotope)
+
+    @property
+    def default(self) -> bool:
+        """True for the .dat source (the original behaviour)."""
+        return self.kind == "dat"
+
+
+def open_spectra(spectra_dir=None, spectra_file=None) -> SpectraSource:
+    """Spectra source from --spectra-dir (.dat files) or --spectra-file (.npz)."""
+    return SpectraSource(spectra_dir, spectra_file)
+
+
+def band_mask(energy: np.ndarray, emin: float | None = None,
+              emax: float | None = None) -> np.ndarray:
+    """Channels whose centres lie in [emin, emax] keV (None = no limit)."""
+    m = np.ones(len(energy), bool)
+    if emin is not None:
+        m &= energy >= emin
+    if emax is not None:
+        m &= energy <= emax
+    if not m.any():
+        raise ValueError(f"No channel centre in the band [{emin}, {emax}] keV "
+                         f"(axis {energy[0]:g}-{energy[-1]:g} keV).")
+    return m
+
+
+def band_integral(spec: np.ndarray, widths: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """
+    Integral over the channels in mask of spec (last axis, counts/s/keV) times
+    the channel widths: counts/s.  Uniform widths and the whole axis give the
+    plain sum times the width.
+    """
+    spec = np.asarray(spec)
+    if mask.all() and np.all(widths == widths[0]):
+        return spec.sum(axis=-1) * widths[0]
+    return spec[..., mask] @ widths[mask]
+
+
+def band_label(emin: float | None, emax: float | None) -> str:
+    """'20-100 keV', '>= 20 keV', ... or '' for the whole axis."""
+    if emin is None and emax is None:
+        return ""
+    if emin is not None and emax is not None:
+        return f"{emin:g}-{emax:g} keV"
+    return f">= {emin:g} keV" if emin is not None else f"<= {emax:g} keV"
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +351,9 @@ def accumulate(
     R:                  float | None = None,
     thetamax:           float | None = None,
     in_belt_only:       bool        = False,
+    spectra_file:       str | Path | None = None,
+    emin:               float | None = None,
+    emax:               float | None = None,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """
     Background spectrum and count rate at each decay time after one SPENVIS
@@ -259,6 +364,12 @@ def accumulate(
     activities_pkl     : activities.pkl from compute_activities.py
     spenvis_file       : SPENVIS AP9/AE9 integral flux file
     spectra_dir        : directory with the {volume}_{isotope}_S-mode.dat files
+    spectra_file       : alternatively a spectra_<mode>.npz from build_spectra.py
+                         (then spectra_dir is ignored and the energy axis, the
+                         channel widths and the spectra come from the file)
+    emin, emax         : band [keV] of the count rate: the spectrum integrated
+                         over the channels whose centres lie in it (default: the
+                         whole axis).  The spectra keep all channels.
     energies           : simulation energies to use [MeV] (default: all the
                          energies of activities.pkl)
     activity_threshold : (volume, isotope) pairs are skipped at the decay times
@@ -280,7 +391,11 @@ def accumulate(
     count_rate : Series, index time_s; total count rate [counts/s].
     """
     activities_pkl = Path(activities_pkl)
-    spectra_dir    = Path(spectra_dir)
+    src  = open_spectra(None if spectra_file is not None else spectra_dir, spectra_file)
+    mask = band_mask(src.energy, emin, emax)
+    print(f"Spectra: {src.source}" + (f" (mode {src.mode})" if src.mode else "")
+          + f", {len(src.energy)} channels {src.edges[0]:g}-{src.edges[-1]:g} keV"
+          + (f"; count rate band {band_label(emin, emax)}" if band_label(emin, emax) else ""))
 
     # ---- Normalised activities ----------------------------------------
     print(f"Loading activities from: {activities_pkl}")
@@ -325,7 +440,7 @@ def accumulate(
     print(f"  {len(pair_act)} (volume, isotope) pairs with activity")
 
     # ---- Spectrum: sum over pairs of activity x spectrum per decay ------
-    total = np.zeros((len(times_s), N_CHANNELS))
+    total = np.zeros((len(times_s), len(src.energy)))
     missing: list[str] = []
     rows: list[np.ndarray] = []
     specs: list[np.ndarray] = []
@@ -337,7 +452,7 @@ def accumulate(
             specs.clear()
 
     for (volume, isotope), a in zip(pair_act.index, pair_act.to_numpy()):
-        spec = load_spectrum(spectrum_path(spectra_dir, volume, isotope))
+        spec = src.get(volume, isotope)
         if spec is None:
             missing.append(f"{volume}/{isotope}")
             continue
@@ -349,13 +464,13 @@ def accumulate(
 
     print(f"  {len(pair_act) - len(missing)} pairs accumulated.")
     if missing:
-        print(f"  [WARN] {len(missing)} spectrum file(s) missing in {spectra_dir}, "
+        print(f"  [WARN] {len(missing)} spectrum(s) missing in {src.source}, "
               f"e.g. {', '.join(missing[:5])}")
 
     # ---- Package output -----------------------------------------------
     index = pd.Index(times_s, name="time_s")
     spectra_df = pd.DataFrame(total.astype(np.float32), index=index,
-                              columns=[f"{e:.4f}" for e in EN_S])
+                              columns=[f"{e:.4f}" for e in src.energy])
     spectra_df.attrs.update({
         "timestep_s":         timestep,
         "duty":               duty,
@@ -363,9 +478,17 @@ def accumulate(
         "nprim_per_step":     nprim,
         "in_belt_only":       in_belt_only,
         "activity_threshold": activity_threshold,
+        "spectra_source":     src.source,
+        "spectra_mode":       src.mode,
+        "spectra_kind":       src.kind,
+        "edges_keV":          src.edges.tolist(),
+        "emin_keV":           emin,
+        "emax_keV":           emax,
     })
-    count_rate = pd.Series(total.sum(axis=1) * DELTA_E, index=index,
+    count_rate = pd.Series(band_integral(total, src.widths, mask), index=index,
                            name="count_rate_cps")
+    count_rate.attrs.update({"spectra_source": src.source, "spectra_mode": src.mode,
+                             "emin_keV": emin, "emax_keV": emax})
     return spectra_df, count_rate
 
 
@@ -387,10 +510,15 @@ def save_outputs(
     else:
         spectra_df.to_pickle(outdir / "spectra.pkl")
 
+    header = "time_s   count_rate_cps"
+    a = spectra_df.attrs
+    if a.get("spectra_kind") == "npz" or a.get("emin_keV") is not None or a.get("emax_keV") is not None:
+        header += (f"\nsource: {a.get('spectra_source')}\nmode: {a.get('spectra_mode')}"
+                   f"\nband_keV: {a.get('emin_keV')} {a.get('emax_keV')}")
     np.savetxt(
         outdir / "count_rate.dat",
         np.column_stack([count_rate.index.to_numpy(), count_rate.to_numpy()]),
-        header="time_s   count_rate_cps",
+        header=header,
         fmt="%.6e",
     )
     print(f"  Spectra saved to {outdir}/spectra.{fmt}")
@@ -422,10 +550,12 @@ def plot_count_rate(
     count_rate: pd.Series,
     title:      str             = "Total background count rate vs time",
     save_path:  str | Path | None = None,
+    band:       str             = "",
 ) -> None:
     """
     Log-log plot of total count rate [counts/s] vs decay time [s].
-    Only time points with count rate > 0 are plotted.
+    Only time points with count rate > 0 are plotted.  band: energy band of the
+    count rate, shown in the title.
     """
     times = count_rate.index.to_numpy()
     rates = count_rate.to_numpy()
@@ -441,7 +571,7 @@ def plot_count_rate(
               label="total count rate")
     ax.set_xlabel("Time after irradiation (s)")
     ax.set_ylabel("Count rate (counts / s)")
-    ax.set_title(title)
+    ax.set_title(title + (f" [{band}]" if band else ""))
     ax.grid(True, which="both", linestyle="--", alpha=0.4)
     ax.legend(fontsize=9)
     fig.tight_layout()
@@ -458,6 +588,8 @@ def plot_spectra(
     spectra_df: pd.DataFrame,
     title:      str             = "Background spectra vs detector energy",
     save_path:  str | Path | None = None,
+    xscale:     str             = "log",
+    band:       tuple[float | None, float | None] = (None, None),
 ) -> None:
     """
     Log-log plot of background spectra for every time point in spectra_df.
@@ -466,7 +598,8 @@ def plot_spectra(
     time using the "magma" colormap, with the colour proportional to
     log10(time_s) so that decades are evenly spaced in colour space.
     A colorbar shows the time axis.  Time points with all-zero spectra
-    are silently skipped.
+    are silently skipped.  xscale: 'log' or 'linear' energy axis; band: (emin,
+    emax) of the count rate, used as the x limits when given.
     """
     import matplotlib.cm as cm
     import matplotlib.colors as mcolors
@@ -496,8 +629,13 @@ def plot_spectra(
                 drawstyle="steps-mid", linewidth=0.8,
                 color=color, alpha=0.85)
 
-    ax.set_xscale("log")
+    ax.set_xscale(xscale)
     ax.set_yscale("log")
+    lo, hi = band
+    if lo is not None or hi is not None:
+        ax.set_xlim(lo if lo is not None else (max(energies[0], 1.0) if xscale == "log"
+                                               else energies[0]),
+                    hi if hi is not None else energies[-1])
     ax.set_xlabel("Detector energy [keV]")
     ax.set_ylabel("Background rate [counts s$^{-1}$ keV$^{-1}$]")
     ax.set_title(title)
@@ -535,7 +673,18 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("activities",   help="activities.pkl from compute_activities.py")
     p.add_argument("spenvis_file", help="SPENVIS AP9/AE9 output text file")
     p.add_argument("--spectra-dir",  default="result_spectra",  metavar="DIR",
-                   help="Directory containing background spectrum .dat files.")
+                   help="Directory containing background spectrum .dat files "
+                        "(fixed S-mode axis, 18-4112 keV).")
+    p.add_argument("--spectra-file", default=None, metavar="NPZ",
+                   help="spectra_<mode>.npz from build_spectra.py; replaces "
+                        "--spectra-dir, and the energy axis comes from the file.")
+    p.add_argument("--emin", type=float, default=None, metavar="KEV",
+                   help="Lower edge of the energy band of the count rate [keV] "
+                        "(default: whole axis).")
+    p.add_argument("--emax", type=float, default=None, metavar="KEV",
+                   help="Upper edge of the energy band of the count rate [keV].")
+    p.add_argument("--xscale", choices=["log", "linear"], default="log",
+                   help="Energy axis of the spectra plot.")
     p.add_argument("--energies", nargs="+", type=float, default=None, metavar="E",
                    help="Simulation energies to use [MeV] (default: all in activities).")
     p.add_argument("--threshold", type=float, default=0.0, metavar="BQ",
@@ -564,6 +713,9 @@ def main(argv: list[str] | None = None) -> None:
         R=args.R,
         thetamax=args.thetamax,
         in_belt_only=args.in_belt_only,
+        spectra_file=args.spectra_file,
+        emin=args.emin,
+        emax=args.emax,
     )
 
     print(f"\nTotal count rate summary:")
@@ -576,8 +728,10 @@ def main(argv: list[str] | None = None) -> None:
         print("  No contributions.")
 
     save_outputs(spectra_df, count_rate, outdir=args.outdir, fmt=args.fmt)
-    plot_count_rate(count_rate, save_path=args.save_plot)
-    plot_spectra(spectra_df, save_path=args.save_spectra)
+    plot_count_rate(count_rate, save_path=args.save_plot,
+                    band=band_label(args.emin, args.emax))
+    plot_spectra(spectra_df, save_path=args.save_spectra, xscale=args.xscale,
+                 band=(args.emin, args.emax))
 
 
 if __name__ == "__main__":
