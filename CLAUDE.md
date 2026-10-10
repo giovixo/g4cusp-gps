@@ -19,8 +19,9 @@ activation background spectrum. It follows the method of Campana et al. 2026 (Ex
 
 - **Never touch `main`**: no commits, merges, rebases, pushes or checkouts, and no worktrees or branches
   based on it. The Agent tool's `isolation: "worktree"` bases worktrees on `main`: do not use it here.
-- `post-activation` = `activation` (merged in `9896885`) + the post-activation program (step 4). Work happens
-  here; when step 4 works, `activation` is fast-forwarded to it and the two branches become one.
+- `post-activation` = `activation` (merged in `9896885`) + the post-activation program (step 4), pushed to
+  `origin/post-activation`. Work happens here; `activation` (at `44a86a8`) will be fast-forwarded to it when the
+  user decides, and the two branches become one.
 
 ## Geant4 applications
 
@@ -38,6 +39,11 @@ activation background spectrum. It follows the method of Campana et al. 2026 (Ex
   file has a `G4Ion` column with the level that decayed). Step 1 only ever produced the `[0.000X]` levels; the
   other names come from the chain builder, which therefore does not fully mimic Geant4 for these daughters.
   The RDM very-long-decay threshold is set to 1e60 y in `main` (default 1 y would stop Na22 decays).
+- One production batch (1 in 67) aborted once with a heap error reported in `G4TessellatedSolid::InsideVoxels`;
+  it did not reproduce (rerun, AddressSanitizer, ThreadSanitizer, 1.7e8 concurrent `Inside()` calls). It is
+  **not** a demonstrated G4Voxelizer bug: `Inside()` does not modify the voxel candidate map. The driver reruns
+  incomplete batches, so outputs stay complete. The pre-fill work-around based on that wrong diagnosis
+  (`3d7c1c0`) was reverted in `0c532b8`.
 - Sources are split into `src/` + `include/` subdirectories: `common/` (`DetectorConstruction`, `PhysicsList`,
   built as the static library `cusp-common`), `activation/` and `postactivation/` (classes prefixed `PostAct`).
 - `cusp-activation [-t nthreads] [-n] [macro]`: `-t 0` = all cores; `-n` removes `G4NeutronTrackingCut`
