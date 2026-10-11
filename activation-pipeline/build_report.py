@@ -541,8 +541,9 @@ def write_pdf(data: dict, path: Path) -> None:
             ("p", "Detector response: true energy deposits; no energy resolution, light yield or quenching; no dead "
                   "time or pile-up. The prompt background during belt passages is not part of this calculation."),
             ("p", orbit_note(data)),
-            ("p", "Coverage: the (volume, nuclide) pairs below the step-3 activity threshold (about 0.9% of the "
-                  "out-of-belt activity) were not simulated in step 4; rates are low by about that fraction."),
+            ("p", "Coverage: the (volume, nuclide) pairs below the step-3 cut (10^-8 decays per primary) hold about "
+                  "10^-4 of the out-of-belt activity and were not simulated in step 4; rates are low by about that "
+                  "fraction."),
             ("p", "Geant4 data: decays follow Geant4's own decay data, including the known RadioactiveDecay6.1.2 "
                   "errors (Geant4 bug 2780 and related reports)."),
             ("p", "Statistics: the statistical error of the total rates is below 1e-3 (relative); single weak pairs "

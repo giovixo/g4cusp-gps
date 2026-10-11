@@ -152,7 +152,7 @@ ul { padding-left: 20px; }
   <li id="selItem"></li>
   <li><b>Detector response</b>: true energy deposits; no resolution, light yield or quenching. Electronics dead time and pile-up are not modelled.</li>
   <li id="orbitItem"></li>
-  <li><b>Coverage</b>: the (volume, nuclide) pairs below the step-3 activity threshold (about 0.9% of the out-of-belt activity) were not simulated in step 4; rates are low by about that fraction.</li>
+  <li><b>Coverage</b>: the (volume, nuclide) pairs below the step-3 cut (10<sup>-8</sup> decays per primary) hold about 10<sup>-4</sup> of the out-of-belt activity and were not simulated in step 4; rates are low by about that fraction.</li>
   <li><b>Geant4 data</b>: decays follow Geant4's own decay data, including the known RadioactiveDecay6.1.2 errors (Geant4 bug 2780 and related reports). Neutron activation changes the yields by less than 3 × 10<sup>-5</sup>.</li>
   <li><b>Statistics</b>: the statistical error of the total rates is below 10<sup>-3</sup> (relative); single weak pairs are noisier. All orbits use the same step-4 spectra, so the ratios between orbits carry almost no statistical error.</li>
 </ul>
