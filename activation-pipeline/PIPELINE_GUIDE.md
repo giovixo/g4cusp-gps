@@ -167,7 +167,7 @@ A warning is printed for each level whose data was borrowed or assumed.
 - **Branching:** each mode's total comes from its summary line (a fraction) and is shared among daughter levels in proportion to the detail lines (in percent). Previously the two were summed, so an isomer's IT fraction could drop from 98.8% to 44%.
 - **Self-transitions:** spurious IT branches of ten ground states onto themselves (e.g. Y92 50%, Tb154 18%) are dropped.
 
-**Chain structure.** Nuclides with T½ < `--min-halflife` are not recorded: a step goes directly to the first long-lived (or stable) nuclides that such prompt decays lead to. The daughter of step *i* is therefore always the parent of step *i+1*. Branches below `--prune` are dropped, and the rest are renormalised to 1.
+**Chain structure.** Nuclides with T½ < `--min-halflife` are not recorded: a step goes directly to the first long-lived (or stable) nuclides that such prompt decays lead to. The daughter of step *i* is therefore always the parent of step *i+1*. The feedings of each effective daughter are summed over all the decay branches of its parent (a decay that feeds many prompt levels of one nuclide is one step) before the prune: branches whose cumulative BR is below `--prune` are dropped, and the rest are renormalised to 1. (Format 4 pruned each prompt level separately and lost dominant branches, e.g. all of Dy147; format 5 fixes it.)
 
 Each file starts with a `# params:` line (format version, `prune`, `min_halflife`, data libraries). An existing file is rebuilt automatically when that line differs.
 
@@ -229,6 +229,8 @@ The activity of a nuclide is assigned to the volume where its root was produced.
 
 For the CUSP production run (17 energies, 89,027 yield entries, 1189 produced nuclides, 201 times) this takes about 21 s and gives 99,661 activity entries and 22,787 active (volume, isotope) pairs.
 
+**Active pairs.** A pair is active if its number of decays per primary over the time grid, ∫A dt, is at least `--min-decays` at some energy. Under a constant irradiation this is proportional to the saturation activity, which the out-of-belt activity follows for half-lives longer than an orbit. The former cut on the peak activity (`--threshold`, ∝ λ·yield) favoured short half-lives: it left out 0.87% of the AP8MIN out-of-belt activity, 1.6% in the GAGG crystals (mostly Tb157). With the new cut (and format-5 chains): 22,334 pairs, 1e-4 of the activity left out.
+
 **Inputs:** `results.pkl`, `DecayChains/*.dat`\
 **Outputs:** `activities.pkl`, `activities_err.pkl` (with `--errors`), `unit_activities.pkl`, `active_isotopes.pkl`
 
@@ -243,7 +245,7 @@ python compute_activities.py results.pkl --chains DecayChains/ --outdir output/ 
 | `--chains` | `DecayChains` | Directory with chain `.dat` files |
 | `--tmin`, `--tmax`, `--per-decade` | `0.1`, `1e9`, `20` | Log-spaced time grid \[s\] (201 points) |
 | `--times` | — | Explicit evaluation times \[s\], overriding the grid |
-| `--threshold` | `1e-15` Bq/primary | Min peak activity for `active_isotopes` |
+| `--min-decays` | `1e-8` | Min decays per primary over the time grid, ∫A dt (max over energies), for `active_isotopes` |
 | `--errors` | off | Also save the 1σ statistical uncertainties |
 | `--outdir` | `.` | Output directory |
 | `--fmt` | `pkl` | `pkl` or `parquet` for the activity tables |
@@ -567,8 +569,9 @@ The energy axis and channel widths are read from `spectra.pkl` (attrs `edges_keV
 
 Builds an HTML page and a PDF on a pipeline run for one or more orbits (SPENVIS files; the first is the
 reference of the ratios). For each orbit and each event class (default `scat_single`, `abs_single`,
-`compton`) it runs steps 6 and 8 on the step-4 spectra (or reuses them with `--reuse`, unless they were
-written before the flux time profile was recorded), computes the step-7 histories internally, and collects
+`compton`) it runs steps 6 and 8 on the step-4 spectra (or reuses them with `--reuse`, unless they are
+older than one of their inputs, e.g. spectra rebuilt with a new selection, or were written before the flux time
+profile was recorded), computes the step-7 histories internally, and collects
 the first-day rate (60 s steps, belt passages marked), the 5-year out-of-belt mean (trailing 30-day
 window), the out-of-belt spectrum after one year, and the most active volumes and nuclides after 1 day,
 1 month, 1 year and 5 years with their share of each event class. It also compares the orbits: their

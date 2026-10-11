@@ -67,8 +67,10 @@ Design notes
   branching ratios.  The daughter of step i is always the parent of step i+1.
 * Transitions of a level onto itself (spurious IT branches of some ground
   states in RadioactiveDecay6.1.2) are dropped and the branching renormalised.
-* Branches whose cumulative branching ratio falls below prune_threshold are
-  dropped (default 0.001, as in Campana et al. 2026); the remaining chains are
+* The feedings of each effective daughter are summed over all the decay
+  branches of the parent before the prune, so that a decay feeding many prompt
+  levels of one nuclide is one step.  Branches whose cumulative branching
+  ratio falls below prune_threshold are dropped (default 0.001, as in Campana et al. 2026); the remaining chains are
   renormalised to a total of 1.
 """
 
@@ -88,7 +90,7 @@ from nuclides import FLOAT_LEVEL_CHARS, SYMBOLS, format_name, parse_name
 _INV_PERIODIC_TABLE = SYMBOLS
 
 _E_TOL = 1e-2          # keV, tolerance when matching level energies
-CHAIN_FORMAT = 4       # bump when the chain-building algorithm changes (forces rebuilds)
+CHAIN_FORMAT = 5       # bump when the chain-building algorithm changes (forces rebuilds)
 _LN2 = math.log(2)
 
 
@@ -485,20 +487,25 @@ def _recurse(
     results      : output list of (chain_copy, cumulative_br)
     """
     path_set = ancestors | {nuc}
+    # Sum the feedings of each effective daughter over all decay branches first
+    # (a decay feeding many prompt levels of one nuclide is one step), so that
+    # the prune applies to the merged step and not to each level separately.
+    steps: dict[Nuclide, float] = {}
     for daughter, br in level.daughters:
         for eff, br2 in _effective_daughters(daughter, db, min_halflife, path_set):
-            step_br = br * br2
-            cum = cumulative_br * step_br
-            if cum < prune_threshold:
-                continue
-            current_path.append(DecayStep(level.half_life, eff, step_br))
-            eff_level = None if eff in path_set else db.get_level(eff)
-            if eff_level is None or eff_level.half_life < 0 or not eff_level.daughters:
-                results.append((list(current_path), cum))      # terminal (or decay loop)
-            else:
-                _recurse(eff, eff_level, db, cum, current_path, path_set,
-                         results, prune_threshold, min_halflife)
-            current_path.pop()
+            steps[eff] = steps.get(eff, 0.0) + br * br2
+    for eff, step_br in steps.items():
+        cum = cumulative_br * step_br
+        if cum < prune_threshold:
+            continue
+        current_path.append(DecayStep(level.half_life, eff, step_br))
+        eff_level = None if eff in path_set else db.get_level(eff)
+        if eff_level is None or eff_level.half_life < 0 or not eff_level.daughters:
+            results.append((list(current_path), cum))      # terminal (or decay loop)
+        else:
+            _recurse(eff, eff_level, db, cum, current_path, path_set,
+                     results, prune_threshold, min_halflife)
+        current_path.pop()
 
 
 def build_chain(

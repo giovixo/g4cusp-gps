@@ -25,8 +25,8 @@ Usage (from activation-pipeline/):
         AP9MEAN.AP9.output_mean_flux_550km_SSO.txt --spectra-dir result_postact --outdir report_run
 
 Options: --labels (default: the file names up to the first dot, e.g. AP8MIN), --modes,
---reuse (skip steps 6 and 8 whose outputs exist), --name.  The first orbit is the
-reference of the ratios.  About 5 minutes per orbit.
+--reuse (skip steps 6 and 8 whose outputs exist and are newer than their inputs), --name.
+The first orbit is the reference of the ratios.  About 5 minutes per orbit.
 """
 
 from __future__ import annotations
@@ -79,18 +79,23 @@ def run_steps(activities: Path, spenvis: Path, spectra_dir: Path, outdir: Path,
         jobs = [
             (d / "count_rate.dat",
              [py, "accumulate_spectra.py", str(activities), str(spenvis), "--spectra-file", str(npz),
-              "--outdir", str(d)], "step6"),
+              "--outdir", str(d)], "step6", [activities, spenvis, npz]),
             (d / "avg_1y.dat",
              [py, "average_spectrum.py", str(d / "spectra.pkl"), str(spenvis), "--duration", "1y",
               "--activities", str(activities), "--spectra-file", str(npz), "--xscale", "linear",
-              "--save-dat", str(d / "avg_1y.dat"), "--save-plot", str(d / "avg_1y.png")], "step8"),
+              "--save-dat", str(d / "avg_1y.dat"), "--save-plot", str(d / "avg_1y.png")], "step8",
+             [activities, spenvis, npz, d / "count_rate.dat", d / "spectra.pkl"]),
         ]
-        for target, cmd, tag in jobs:
-            # outputs written before the flux time profile was recorded are redone
+        for target, cmd, tag, inputs in jobs:
+            # outputs older than one of their inputs (e.g. spectra rebuilt with a new event
+            # selection), or written before the flux time profile was recorded, are redone
             if reuse and target.exists() and \
                     count_rate_info(d / "count_rate.dat").get("profile_emin") is not None:
-                print(f"[{m}] {tag}: reusing {target}")
-                continue
+                newer = [p.name for p in inputs if p.stat().st_mtime > target.stat().st_mtime]
+                if not newer:
+                    print(f"[{m}] {tag}: reusing {target}")
+                    continue
+                print(f"[{m}] {tag}: {target.name} is older than {', '.join(newer)}: redoing it")
             print(f"[{m}] {tag}: {' '.join(cmd[1:3])} ...")
             with open(d / f"{tag}.log", "w") as log:
                 subprocess.run(cmd, cwd=HERE, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -585,7 +590,7 @@ def main(argv: list[str] | None = None) -> None:
                    help="directory with spectra_<mode>.npz and the step-4 runs files")
     p.add_argument("--outdir", type=Path, default=Path("report_run"))
     p.add_argument("--modes", nargs="+", default=["scat_single", "abs_single", "compton"])
-    p.add_argument("--reuse", action="store_true", help="reuse existing step 6 and 8 outputs in --outdir")
+    p.add_argument("--reuse", action="store_true", help="reuse the step 6 and 8 outputs in --outdir that are newer than their inputs")
     p.add_argument("--name", default="cusp_activation_report", help="base name of the HTML and PDF files")
     args = p.parse_args(argv)
 

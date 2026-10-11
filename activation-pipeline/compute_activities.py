@@ -44,8 +44,11 @@ Writes (in --outdir)
   unit_activities.pkl
       MultiIndex(root, isotope) x time columns: a_{r,i}(t) [Bq per root nucleus].
   active_isotopes.pkl
-      {volume: set(isotope)} of the pairs whose peak activity, over all
-      energies and times, is at least --threshold [Bq/primary].
+      {volume: set(isotope)} of the pairs whose number of decays per primary
+      over the time grid, ∫ A dt (max over energies), is at least --min-decays.
+      Under a constant irradiation it is proportional to the saturation
+      activity, so long-lived nuclides are not cut more than short-lived ones
+      (a cut on the peak activity, ∝ λ·yield, would favour short half-lives).
 
 Usage (CLI)
 -----------
@@ -136,7 +139,7 @@ def compute_activities(
     activation_pkl:     str | Path,
     chains_dir:         str | Path = "DecayChains",
     times:              np.ndarray | None = None,
-    activity_threshold: float = 1e-15,
+    min_decays:         float = 1e-8,
     with_errors:        bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame, dict[str, set[str]]]:
     """
@@ -207,10 +210,12 @@ def compute_activities(
     unit_df.attrs["times"] = times.tolist()
 
     # ---- active isotopes ----------------------------------------------------
-    peak = activities.max(axis=1)
+    # decays per primary over the grid (trapezoids, plus A(t_0)·t_0 before t_0)
+    decays = (0.5 * (A[:, 1:] + A[:, :-1]) * np.diff(times)).sum(axis=1) + A[:, 0] * times[0]
+    n_dec = pd.Series(decays, index=idx).sort_index()
     active_isotopes: dict[str, set[str]] = {}
-    for (energy, volume, iso), p in peak.items():
-        if p >= activity_threshold:
+    for (energy, volume, iso), n in n_dec.items():
+        if n >= min_decays:
             active_isotopes.setdefault(volume, set()).add(iso)
 
     return activities, activities_err, unit_df, active_isotopes
@@ -317,8 +322,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--tmin", type=float, default=0.1, help="Grid start [s].")
     p.add_argument("--tmax", type=float, default=1e9, help="Grid end [s].")
     p.add_argument("--per-decade", type=int, default=20, help="Grid points per decade.")
-    p.add_argument("--threshold", type=float, default=1e-15, metavar="BQ",
-                   help="Min peak activity [Bq/primary] for active_isotopes.")
+    p.add_argument("--min-decays", type=float, default=1e-8, metavar="N",
+                   help="Min decays per primary over the time grid (∫A dt) for active_isotopes.")
     p.add_argument("--errors", action="store_true",
                    help="Also compute and save the statistical uncertainties.")
     p.add_argument("--outdir", default=".", metavar="DIR", help="Output directory.")
@@ -336,7 +341,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Decay chains    : {args.chains}")
     print(f"Time grid       : {len(times)} points, {times[0]:.3g} – {times[-1]:.3g} s")
     activities, act_err, unit_df, active = compute_activities(
-        args.pkl, args.chains, times, args.threshold, args.errors)
+        args.pkl, args.chains, times, args.min_decays, args.errors)
     print_summary(activities, active)
     save_outputs(activities, active, outdir=args.outdir, fmt=args.fmt,
                  activities_err=act_err, unit_df=unit_df)

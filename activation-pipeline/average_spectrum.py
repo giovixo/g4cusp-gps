@@ -211,9 +211,9 @@ def compute_average_spectrum(
         print(f"Spectra source: {src_name}" + (f" (mode {src_mode})" if src_mode else ""))
 
     # ---- Orbit flux and lag weights ------------------------------------------
-    emin = profile_energy(attrs.get("profile_emin_MeV"), None, str(spectra_pkl))
+    profile_emin = profile_energy(attrs.get("profile_emin_MeV"), None, str(spectra_pkl))
     flux, _, F_mean, dt, total = _prepare_flux_and_norm(
-        spenvis_file, bool(attrs.get("in_belt_only", False)), emin)
+        spenvis_file, bool(attrs.get("in_belt_only", False)), profile_emin)
     if abs(dt - attrs["timestep_s"]) > 1e-6 * dt:
         sys.exit(f"ERROR: time step of {spenvis_file} ({dt:.3f} s) differs from the one "
                  f"of {spectra_pkl.name} ({attrs['timestep_s']:.3f} s).")

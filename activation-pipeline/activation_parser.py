@@ -163,6 +163,15 @@ def parse_score_files(file_specs: list[tuple]) -> pd.DataFrame:
     ... ]
     >>> df = parse_score_files(specs)
     """
+    by_energy: dict[float, list[str]] = {}
+    for p, e, _ in file_specs:
+        by_energy.setdefault(float(e), []).append(Path(p).name)
+    dup = {e: names for e, names in by_energy.items() if len(names) > 1}
+    if dup:
+        raise ValueError("Several score files for the same energy (their yields would be "
+                         "summed): " + "; ".join(f"{e:g} MeV: {', '.join(n)}"
+                                                 for e, n in sorted(dup.items()))
+                         + ". Move the extra files out of the directory.")
     frames = [parse_score_file(p, e, n) for p, e, n in file_specs]
     df = pd.concat(frames).sort_index()
     df.attrs["nprim"] = {float(e): int(n) for _, e, n in file_specs}
@@ -223,7 +232,8 @@ def scan_directory(
     Raises
     ------
     FileNotFoundError  if no matching files are found.
-    ValueError         if a file has no energy tag, or n_prim is unknown.
+    ValueError         if a file has no energy tag, n_prim is unknown, or two files
+                       have the same energy.
     """
     directory = Path(directory)
     files = sorted(directory.glob(glob))
