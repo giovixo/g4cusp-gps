@@ -320,7 +320,7 @@ Turns the step-4 hit lists into a spectrum per decay of each (volume, isotope) p
 Selection of the events of each decay:
 1. Optional Gaussian smearing of each deposit (off by default): FWHM(E) = f·√(E·e_ref), f = `--fwhm-scat`/`--fwhm-abs` at `--e-ref`.
 2. Threshold: a scintillator triggers if its deposit is ≥ `--thr-scat` (plastic scatterers, ScintID 0–63) or `--thr-abs` (GAGG absorbers, 64–95). Deposits below threshold are ignored.
-3. Coincidence window: triggered scintillators later than `--window` after the first one are dropped (not counted as a separate event).
+3. Coincidence window: triggered scintillators later than `--window` after the first one are dropped (not counted as a separate event). The time of a scintillator is that of its first deposit, while its energy sums all its deposits up to `/postact/timeWindow` (10 µs): with a window below 10 µs a late deposit is summed if its scintillator also had an early one and dropped otherwise (e.g. the Po212 alpha after a Bi212 beta). A window of 10 µs or more is consistent. Planned with the final selection: window = `/postact/timeWindow` = `min_halflife` (steps 2 and 4) = 10 µs, which also merges into their parent's event the isomers with T½ of 1–10 µs (Zn67[93.3] after Ga67 in GAGG, Ta181[6.2], Ta179[30.7]: 2.7% of the activity). This needs a new step-4 production.
 4. Modes, with n_s, n_a the triggered scatterers and absorbers:
 
 | Mode | Condition | Energy |

@@ -20,8 +20,13 @@ Selection of the events of a decay
 3. Coincidence window: t_first is the earliest time among the triggered
    scintillators of the decay; triggered scintillators with t - t_first >
    --window are dropped.  Simplification: in reality they would be a separate
-   event; here they are ignored.  t is the time of the first deposit in each
-   scintillator (the hit list has no later ones).
+   event; here they are ignored.  Caveat: the hit list has one row per
+   scintillator, with t the time of its first deposit and Edep the sum of ALL
+   its deposits up to /postact/timeWindow (10 us).  With --window below that, a
+   late deposit is kept (summed) if its scintillator also had an early one, and
+   dropped otherwise (e.g. the Po212 alpha after a Bi212 beta).  --window >=
+   /postact/timeWindow is consistent.  Planned with the final selection:
+   window = timeWindow = minHalfLife (step 2 and 4) = 10 us.
 4. Modes (n_s, n_a = triggered scatterers, absorbers after the steps above):
      scat_single   n_s == 1, n_a == 0      E = the scatterer deposit
      abs_single    n_s == 0, n_a == 1      E = the absorber deposit
