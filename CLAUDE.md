@@ -123,6 +123,8 @@ activation background (rates and spectra). It follows the method of Campana et a
 - Commit or push only when asked. Remote `https://github.com/giovixo/g4cusp-gps.git` belongs to another user;
   Riccardo pushes as a collaborator over HTTPS (keychain token). Commits are signed with an SSH key from
   1Password: if `git commit` fails with a 1Password error, ask the user to unlock it; never disable signing.
+- No `Co-Authored-By: Claude` trailer or other Claude attribution in commit messages or PRs (decided 2026-10-11;
+  the commits before that date keep theirs: history is not rewritten).
 - Keep, unless asked otherwise: `SteppingAction` of `cusp-activation` (no stacking action), the empty `UserRun`
   and `UserEventAction`, the unused materials in `DetectorConstruction`, the fixed random seed.
 - Simulation outputs, pickles, logs, plots, reports and `.dat` files stay out of git (see the `.gitignore` files).
