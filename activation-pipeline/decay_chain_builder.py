@@ -544,7 +544,8 @@ def build_chain(
     total = sum(br for _, br in results)
     if total > 0:
         results = [(c, br / total) for c, br in results]
-    results.sort(key=lambda x: x[1], reverse=True)
+    # by decreasing BR; ties by the step sequence, so that the files are reproducible
+    results.sort(key=lambda x: (-x[1], [(s.parent_halflife, str(s.daughter)) for s in x[0]]))
     return results
 
 

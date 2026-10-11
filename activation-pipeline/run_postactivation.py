@@ -37,6 +37,16 @@ A batch is complete when its runs file lists all its pairs with the right
 number of decays and its macro is unchanged; complete batches are skipped, the
 others are deleted and rerun (unless --no-rerun).
 
+Top-up
+------
+With --topup, only the pairs of active_isotopes.pkl that no production batch
+(batch_0000 ... batch_0999) has simulated are run, e.g. after a new step 3.
+Their decays are those of the full allocation (same budget and options as the
+production), and they go into batches batch_1000, batch_1001, ... (allocation
+in allocation_topup.csv, run info in postact_topup_info.json), which build_spectra.py
+and load_events read with the others.  Pairs simulated by the production but
+no longer active are kept.  Resume works as for the production.
+
 Inputs
 ------
   activities.pkl, active_isotopes.pkl   from compute_activities.py
@@ -54,6 +64,7 @@ Usage (CLI)
     python run_postactivation.py output/activities.pkl AP8MIN.AP8.output_mean_flux_550km_SSO.txt
     python run_postactivation.py ... --dry-run        # allocation and macros only
     python run_postactivation.py ... --test 9         # timing on 9 pairs, then stop
+    python run_postactivation.py ... --topup          # only the pairs not simulated yet
     caffeinate -i python run_postactivation.py ... > postact.log 2>&1 &
 
 Library use
@@ -258,8 +269,21 @@ def summarize_allocation(table: pd.DataFrame, nmin: int, nmax: int, top: int = 2
 # Macros and batch execution
 # ---------------------------------------------------------------------------
 
+TOPUP_FIRST = 1000        # index of the first top-up batch
+
+
 def batch_name(i: int) -> str:
     return f"batch_{i:04d}"
+
+
+def simulated_pairs(outdir: Path) -> set[tuple[str, str]]:
+    """(Volume, Isotope) of the runs of the production batches (index < TOPUP_FIRST)."""
+    done: set[tuple[str, str]] = set()
+    for f in outdir.glob("batch_*_runs.csv"):
+        m = re.fullmatch(r"batch_(\d+)_runs\.csv", f.name)
+        if m and int(m.group(1)) < TOPUP_FIRST:
+            done.update((v, i) for v, i, _ in read_runs(f))
+    return done
 
 
 def macro_text(prefix: Path, pairs: list[tuple[str, str, int]], pre_commands: list[str]) -> str:
@@ -303,8 +327,9 @@ def run_batch(exe: str, threads: int, outdir: Path, name: str, workdir: Path) ->
 
 
 def run_all(table: pd.DataFrame, batches: list[list[int]], outdir: Path, cfg: dict,
-            dry_run: bool, rerun: bool, info: dict, info_path: Path) -> list[str]:
-    """Write the macros and run the incomplete batches; returns the failed batch names."""
+            dry_run: bool, rerun: bool, info: dict, info_path: Path, first: int = 0) -> list[str]:
+    """Write the macros and run the incomplete batches (named from index `first`);
+    returns the failed batch names."""
     pairs_all = list(zip(table["Volume"], table["Isotope"], table["NDecays"].astype(int)))
     exe, workdir = cfg["executable"], outdir / "work"
     if not dry_run:
@@ -312,7 +337,7 @@ def run_all(table: pd.DataFrame, batches: list[list[int]], outdir: Path, cfg: di
     failed: list[str] = []
     done_decays, t_start = 0, time.monotonic()
 
-    for i, rows in enumerate(batches):
+    for i, rows in enumerate(batches, start=first):
         name = batch_name(i)
         pairs = [pairs_all[r] for r in rows]
         n_batch = sum(p[2] for p in pairs)
@@ -541,6 +566,9 @@ def build_argparser() -> argparse.ArgumentParser:
     g.add_argument("--no-rerun", dest="rerun", action="store_false",
                    help="do not rerun incomplete batches (report them as failed)")
     g.add_argument("--overwrite", action="store_true", help="delete the previous results of --outdir and restart")
+    g.add_argument("--topup", action="store_true",
+                   help="run only the pairs that no production batch of --outdir has simulated, with the "
+                        "decays of the full allocation (pass the production's allocation options)")
     return p
 
 
@@ -557,6 +585,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.dry_run and (not geo.is_dir() or not any(geo.glob("*.gdml"))):
         sys.exit(f"ERROR: no GDML file in geometry directory {geo}")
 
+    if args.topup and (args.overwrite or args.test is not None):
+        sys.exit("ERROR: --topup cannot be combined with --overwrite or --test.")
     if args.overwrite and outdir.exists() and not args.dry_run:
         for p in outdir.glob("batch_*"):
             p.unlink()
@@ -570,11 +600,27 @@ def main(argv: list[str] | None = None) -> int:
         R=args.R, thetamax=args.thetamax)
     table["NDecays"] = allocate_decays(table["Weight_Bq"].to_numpy(), args.budget, args.nmin,
                                        args.nmax, args.round_to)
+    first, alloc_name, info_name = 0, "allocation.csv", "postact_info.json"
+    if args.topup:
+        done = simulated_pairs(outdir)
+        if not done:
+            sys.exit(f"ERROR: --topup: no production batch in {outdir}.")
+        new = ~pd.Series([p in done for p in zip(table["Volume"], table["Isotope"])], index=table.index)
+        print(f"Top-up: {int(new.sum())} of {len(table)} pairs not simulated yet "
+              f"({table['Weight_Bq'][new].sum() / table['Weight_Bq'].sum():.3%} of the activity, "
+              f"{int(table['NDecays'][new].sum()):,} decays); {len(done)} pairs already simulated")
+        attrs = table.attrs
+        table = table[new].reset_index(drop=True)
+        table.attrs.update(attrs)
+        if table.empty:
+            print("Nothing to do.")
+            return 0
+        first, alloc_name, info_name = TOPUP_FIRST, "allocation_topup.csv", "postact_topup_info.json"
     batches = make_batches(table, args.batch_size, args.batch_decays)
     table["Batch"] = 0
-    for i, rows in enumerate(batches):
+    for i, rows in enumerate(batches, start=first):
         table.loc[rows, "Batch"] = i
-    table.to_csv(outdir / "allocation.csv", index=False,
+    table.to_csv(outdir / alloc_name, index=False,
                  columns=["Volume", "Isotope", "Weight_Bq", "NDecays", "Batch"], float_format="%.8g")
 
     a = table.attrs
@@ -584,7 +630,7 @@ def main(argv: list[str] | None = None) -> int:
     summarize_allocation(table, args.nmin, args.nmax)
     print(f"{len(batches)} batches (<= {args.batch_size} pairs, <= {args.batch_decays:.3g} decays)")
 
-    info_path = outdir / "postact_info.json"
+    info_path = outdir / info_name
     info = {"created": dt.datetime.now().isoformat(timespec="seconds"),
             "options": {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()},
             "executable": str(exe), "geometry_dir": str(geo), "git": git_info(),
@@ -606,9 +652,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         return run_test(table, args.test, int(args.test_decays), outdir, cfg, int(table["NDecays"].sum()))
 
-    failed = run_all(table, batches, outdir, cfg, args.dry_run, args.rerun, info, info_path)
+    failed = run_all(table, batches, outdir, cfg, args.dry_run, args.rerun, info, info_path, first)
     if args.dry_run:
-        print(f"\nDry run: allocation.csv and {len(batches)} macros written to {outdir}")
+        print(f"\nDry run: {alloc_name} and {len(batches)} macros written to {outdir}")
         return 0
     if failed:
         print(f"\nFAILED batches: {failed}")
