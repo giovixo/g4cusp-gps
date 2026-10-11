@@ -227,7 +227,7 @@ A_{E,v,i}(t) = Σ_r eff_{E,v,r} · a_{r,i}(t)
 
 The activity of a nuclide is assigned to the volume where its root was produced. A produced nuclide without a chain file only contributes its own activity λe^{−λt}, and is listed in a warning. This is the case for nuclides with no decay data, such as Ta178[0.000X]. With `--errors`, the Poisson uncertainty of the yields is propagated.
 
-For the CUSP production run (17 energies, 89,027 yield entries, 1189 produced nuclides, 201 times) this takes about 21 s and gives 99,661 activity entries and 22,787 active (volume, isotope) pairs.
+For the CUSP production run (17 energies, 89,027 yield entries, 1189 produced nuclides, 201 times) this takes about 30 s and gives 99,810 activity entries and 22,334 active (volume, isotope) pairs (format-5 chains, `--min-decays 1e-8`; 22,787 with the former chains and peak-activity cut).
 
 **Active pairs.** A pair is active if its number of decays per primary over the time grid, ∫A dt, is at least `--min-decays` at some energy. Under a constant irradiation this is proportional to the saturation activity, which the out-of-belt activity follows for half-lives longer than an orbit. The former cut on the peak activity (`--threshold`, ∝ λ·yield) favoured short half-lives: it left out 0.87% of the AP8MIN out-of-belt activity, 1.6% in the GAGG crystals (mostly Tb157). With the new cut (and format-5 chains): 22,334 pairs, 1e-4 of the activity left out.
 
@@ -267,7 +267,7 @@ df.groupby(level="isotope").sum()                 # summed over energies and vol
 
 ### 4. `run_postactivation.py`
 
-Runs the Geant4 program `cusp-postactivation`, which decays each active nuclide in each volume and records the energy deposited in the scintillators, for every `(volume, isotope)` pair of `active_isotopes.pkl` (22,787 pairs for the CUSP run).
+Runs the Geant4 program `cusp-postactivation`, which decays each active nuclide in each volume and records the energy deposited in the scintillators, for every `(volume, isotope)` pair of `active_isotopes.pkl` (22,787 pairs for the CUSP production, plus a top-up of 730 pairs after the step-3 fixes of 2026-10-11: 23,517 pairs in all).
 
 - **Weights:** the steady-state out-of-belt mean activity A_p \[Bq\] of each pair, computed as in `average_spectrum.py` (primaries per step from the SPENVIS file, step-averaged kernel, lag weights of the out-of-belt steps, flux profile F(>E_min)). Their sum is the total steady-state out-of-belt activity. The weights only balance the statistics: the hit lists per decay do not depend on the orbit, so step 4 is **not** rerun for a new orbit.
 - **Allocation:** N_p ∝ A_p (minimises the variance of the summed background for a fixed total), clipped to \[`--nmin`, `--nmax`\] and scaled (iterating with the clipping) to a total of about `--budget`, rounded to multiples of 100. Pairs with zero weight get `--nmin`. The summary lists the pairs at the limits and the top 20 pairs.
@@ -303,6 +303,7 @@ The macros hold the absolute path of the output files (`/postact/output`), and a
 | `--test N`, `--test-decays` | — , `1e4` | Time N pairs spanning the weight range (Scatterer, Absorber, other volumes; one process each, start-up subtracted) and extrapolate to the allocation, then stop |
 | `--dry-run` | off | Write `allocation.csv` and the macros only |
 | `--no-rerun`, `--overwrite` | off | Do not rerun incomplete batches; delete the previous results |
+| `--topup` | off | Run only the active pairs that no production batch (`batch_0000`–`batch_0999`) has simulated, with the decays of the full allocation, in batches `batch_1000` and up (`allocation_topup.csv`, `postact_topup_info.json`). Pass the production's allocation options. Pairs no longer active are kept. Use it after a new step 3 instead of rerunning the production |
 
 ```python
 from run_postactivation import load_events
@@ -637,6 +638,7 @@ python compute_activities.py results.pkl --chains DecayChains/ --outdir output/ 
 # 4. Geant4 post-activation run (decays per pair from the out-of-belt activity), ~2 h
 caffeinate -i python run_postactivation.py output/activities.pkl $SPENVIS \
     --budget 3e8 --nmax 1000000 --batch-size 2000 --batch-decays 5e6 > production_postact.log 2>&1
+#    after a new step 3: same options plus --topup (only the pairs not simulated yet, minutes)
 
 # 4b. Event selection -> result_postact/spectra_<mode>.npz
 python build_spectra.py result_postact
