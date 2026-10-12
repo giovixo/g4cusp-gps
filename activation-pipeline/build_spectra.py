@@ -6,17 +6,17 @@ run_postactivation.py (result_postact/batch_NNNN_t*.csv) into detector spectra
 per decay of each (volume, isotope) pair, one file per event class ("mode"),
 in the format of pair_spectra.py (spectra_<mode>.npz).
 
-THE EVENT SELECTION IS PROVISIONAL: the CUSP thresholds, coincidence window and
-energy resolution are not decided yet; the defaults below are placeholders.
+CUSP event selection (2026-10-12): LLD 1 keV plastic / 24 keV GAGG, ULD 16 keV
+plastic / 84 keV GAGG, coincidence window 10 us.  No energy resolution yet.
 
 Selection of the events of a decay
 ----------------------------------
 1. Optional Gaussian smearing of every scintillator deposit (off by default):
    sigma = FWHM(E)/2.355, FWHM(E) = f * sqrt(E * e_ref), f the relative FWHM at
    e_ref (--fwhm-scat / --fwhm-abs).  Fixed seed, reproducible per batch.
-2. Threshold: a scintillator triggers if Edep >= --thr-scat (scatterers,
-   ScintID 0-63) or --thr-abs (absorbers, ScintID 64-95).  Deposits below
-   threshold are ignored entirely.
+2. Lower-level discriminator (LLD): a scintillator triggers if Edep >=
+   --thr-scat (scatterers, ScintID 0-63) or --thr-abs (absorbers, ScintID
+   64-95).  Deposits below the LLD are ignored entirely.
 3. Coincidence window: t_first is the earliest time among the triggered
    scintillators of the decay; triggered scintillators with t - t_first >
    --window are dropped.  Simplification: in reality they would be a separate
@@ -25,14 +25,18 @@ Selection of the events of a decay
    its deposits up to /postact/timeWindow (10 us).  With --window below that, a
    late deposit is kept (summed) if its scintillator also had an early one, and
    dropped otherwise (e.g. the Po212 alpha after a Bi212 beta).  --window >=
-   /postact/timeWindow is consistent.  Planned with the final selection:
-   window = timeWindow = minHalfLife (step 2 and 4) = 10 us.
-4. Modes (n_s, n_a = triggered scatterers, absorbers after the steps above):
+   /postact/timeWindow is consistent (the default, 10 us).  Fully consistent
+   also needs minHalfLife (steps 2 and 4) = 10 us, so that isomers with
+   T1/2 of 1-10 us are part of their parent's event.
+4. Upper-level discriminator (ULD): a decay is vetoed (no event in any mode)
+   if a scintillator kept by step 3 has Edep > --uld-scat (scatterers) or
+   --uld-abs (absorbers).  0 = no ULD.
+5. Modes (n_s, n_a = triggered scatterers, absorbers after the steps above):
      scat_single   n_s == 1, n_a == 0      E = the scatterer deposit
      abs_single    n_s == 0, n_a == 1      E = the absorber deposit
      compton       n_s == 1, n_a == 1      E = sum of the two (no geometric cuts)
      any           n_s + n_a >= 1          E = sum of all triggered deposits
-5. Binning: channels of --binwidth from 0 to --emax; events with E >= emax are
+6. Binning: channels of --binwidth from 0 to --emax; events with E >= emax are
    dropped (their number is in meta["n_overflow"]).
 
 Output (in --outdir, default the input directory)
@@ -42,7 +46,7 @@ Output (in --outdir, default the input directory)
 Usage (CLI)
 -----------
     python build_spectra.py result_postact
-    python build_spectra.py result_postact --modes compton any --thr-abs 30 --window 200
+    python build_spectra.py result_postact --modes compton any --thr-abs 30 --uld-abs 0
     python build_spectra.py result_postact --fwhm-abs 0.07 --jobs 4
 
 Library use
@@ -77,7 +81,7 @@ HIT_DTYPES = {"RunID": "int32", "EventID": "int32", "ScintID": "int16",
               "Edep_keV": "float64", "t_ns": "float64"}
 
 DEFAULT_PARAMS = {
-    "thr_scat": 5.0, "thr_abs": 20.0, "window": 500.0,
+    "thr_scat": 1.0, "thr_abs": 24.0, "uld_scat": 16.0, "uld_abs": 84.0, "window": 10000.0,
     "fwhm_scat": 0.0, "fwhm_abs": 0.0, "e_ref": 662.0,
     "emax": 2000.0, "binwidth": 1.0, "seed": 12345,
 }
@@ -132,6 +136,16 @@ def select_events(hits: pd.DataFrame, params: dict, modes=MODES,
     keep = (t - np.repeat(t_first, n_per)) <= params["window"]
     run, key, is_scat, e = run[keep], key[keep], is_scat[keep], e[keep]
     start = np.concatenate(([0], np.flatnonzero(np.diff(key)) + 1))
+    # ULD: a scintillator above it vetoes the whole decay
+    uld = np.where(is_scat, params["uld_scat"], params["uld_abs"])
+    over = (uld > 0) & (e > uld)
+    if over.any():
+        n_per = np.diff(np.append(start, len(key)))
+        ok = np.repeat(np.add.reduceat(over.astype(np.int32), start) == 0, n_per)
+        run, key, is_scat, e = run[ok], key[ok], is_scat[ok], e[ok]
+        if len(e) == 0:
+            return {m: empty for m in modes}
+        start = np.concatenate(([0], np.flatnonzero(np.diff(key)) + 1))
     n_s = np.add.reduceat(is_scat.astype(np.int32), start)
     n_a = np.add.reduceat((~is_scat).astype(np.int32), start)
     e_sum = np.add.reduceat(e, start)
@@ -229,7 +243,7 @@ def build_spectra(indir: str | Path, outdir: str | Path | None = None, modes=MOD
     vols = [v for v, _ in pair_index]; isos = [i for _, i in pair_index]
     meta_common = {**p, "source_dir": str(indir.resolve()), "git_commit": git_commit(),
                    "date": dt.datetime.now().isoformat(timespec="seconds"),
-                   "selection": "PROVISIONAL (CUSP thresholds, window and resolution not decided)",
+                   "selection": "CUSP LLD/ULD and window (2026-10-12), no energy resolution",
                    "n_batches": len(batches)}
     paths = {}
     outdir.mkdir(parents=True, exist_ok=True)
@@ -255,15 +269,17 @@ def build_spectra(indir: str | Path, outdir: str | Path | None = None, modes=MOD
 def build_argparser() -> argparse.ArgumentParser:
     d = DEFAULT_PARAMS
     p = argparse.ArgumentParser(description="Detector spectra per decay of each (volume, isotope) pair "
-                                "from the step-4 hit lists. The selection parameters are PROVISIONAL "
-                                "defaults: the CUSP values are not decided yet.")
+                                "from the step-4 hit lists. Defaults: the CUSP selection of 2026-10-12.")
     p.add_argument("indir", help="run_postactivation.py output directory (batch_*_runs.csv, batch_*_t*.csv)")
     p.add_argument("--outdir", default=None, help="output directory (default: indir)")
     p.add_argument("--modes", nargs="+", choices=MODES, default=list(MODES), help="event classes to write")
-    p.add_argument("--thr-scat", type=float, default=d["thr_scat"], help="scatterer threshold [keV] (provisional)")
-    p.add_argument("--thr-abs", type=float, default=d["thr_abs"], help="absorber threshold [keV] (provisional)")
+    p.add_argument("--thr-scat", type=float, default=d["thr_scat"], help="scatterer LLD [keV]")
+    p.add_argument("--thr-abs", type=float, default=d["thr_abs"], help="absorber LLD [keV]")
+    p.add_argument("--uld-scat", type=float, default=d["uld_scat"],
+                   help="scatterer ULD [keV]: a deposit above vetoes the decay; 0 = none")
+    p.add_argument("--uld-abs", type=float, default=d["uld_abs"], help="absorber ULD [keV]; 0 = none")
     p.add_argument("--window", type=float, default=d["window"],
-                   help="coincidence window [ns] from the earliest triggered scintillator (provisional)")
+                   help="coincidence window [ns] from the earliest triggered scintillator")
     p.add_argument("--fwhm-scat", type=float, default=d["fwhm_scat"],
                    help="relative FWHM of the scatterers at --e-ref, scaling as sqrt(E); 0 = no smearing")
     p.add_argument("--fwhm-abs", type=float, default=d["fwhm_abs"], help="same for the absorbers")
@@ -277,7 +293,8 @@ def build_argparser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     a = build_argparser().parse_args(argv)
-    params = {"thr_scat": a.thr_scat, "thr_abs": a.thr_abs, "window": a.window, "fwhm_scat": a.fwhm_scat,
+    params = {"thr_scat": a.thr_scat, "thr_abs": a.thr_abs, "uld_scat": a.uld_scat, "uld_abs": a.uld_abs,
+              "window": a.window, "fwhm_scat": a.fwhm_scat,
               "fwhm_abs": a.fwhm_abs, "e_ref": a.e_ref, "emax": a.emax, "binwidth": a.binwidth, "seed": a.seed}
     t0 = time.time()
     build_spectra(a.indir, a.outdir, a.modes, params, a.jobs)

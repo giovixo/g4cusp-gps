@@ -315,13 +315,14 @@ pairs                                         # NDecays per (Volume, Isotope): r
 
 ### 4b. `build_spectra.py`
 
-Turns the step-4 hit lists into a spectrum per decay of each (volume, isotope) pair, one file per event class (mode), in the format of `pair_spectra.py`. **The event selection is provisional:** the CUSP thresholds, coincidence window and energy resolution are not decided yet, and the defaults are placeholders.
+Turns the step-4 hit lists into a spectrum per decay of each (volume, isotope) pair, one file per event class (mode), in the format of `pair_spectra.py`. The defaults are the CUSP event selection of 2026-10-12: LLD 1 keV plastic / 24 keV GAGG, ULD 16 keV plastic / 84 keV GAGG, coincidence window 10 µs. Energy resolution is not decided yet (off by default).
 
 Selection of the events of each decay:
 1. Optional Gaussian smearing of each deposit (off by default): FWHM(E) = f·√(E·e_ref), f = `--fwhm-scat`/`--fwhm-abs` at `--e-ref`.
-2. Threshold: a scintillator triggers if its deposit is ≥ `--thr-scat` (plastic scatterers, ScintID 0–63) or `--thr-abs` (GAGG absorbers, 64–95). Deposits below threshold are ignored.
-3. Coincidence window: triggered scintillators later than `--window` after the first one are dropped (not counted as a separate event). The time of a scintillator is that of its first deposit, while its energy sums all its deposits up to `/postact/timeWindow` (10 µs): with a window below 10 µs a late deposit is summed if its scintillator also had an early one and dropped otherwise (e.g. the Po212 alpha after a Bi212 beta). A window of 10 µs or more is consistent. Planned with the final selection: window = `/postact/timeWindow` = `min_halflife` (steps 2 and 4) = 10 µs, which also merges into their parent's event the isomers with T½ of 1–10 µs (Zn67[93.3] after Ga67 in GAGG, Ta181[6.2], Ta179[30.7]: 2.7% of the activity). This needs a new step-4 production.
-4. Modes, with n_s, n_a the triggered scatterers and absorbers:
+2. Lower-level discriminator (LLD): a scintillator triggers if its deposit is ≥ `--thr-scat` (plastic scatterers, ScintID 0–63) or `--thr-abs` (GAGG absorbers, 64–95). Deposits below the LLD are ignored.
+3. Coincidence window: triggered scintillators later than `--window` after the first one are dropped (not counted as a separate event). The time of a scintillator is that of its first deposit, while its energy sums all its deposits up to `/postact/timeWindow` (10 µs): with a window below 10 µs a late deposit is summed if its scintillator also had an early one and dropped otherwise (e.g. the Po212 alpha after a Bi212 beta). A window of 10 µs or more (the default) is consistent. Fully consistent also needs `min_halflife` (step 2) = `/postact/minHalfLife` (step 4) = 10 µs, which merges into their parent's event the isomers with T½ of 1–10 µs (Zn67[93.3] after Ga67 in GAGG, Ta181[6.2], Ta179[30.7]: 2.7% of the activity); the production of 2026-10-10 used 1 µs.
+4. Upper-level discriminator (ULD): a decay is vetoed (no event in any mode) if a scintillator kept by step 3 has a deposit > `--uld-scat` (plastic) or `--uld-abs` (GAGG); 0 disables it.
+5. Modes, with n_s, n_a the triggered scatterers and absorbers:
 
 | Mode | Condition | Energy |
 | --- | --- | --- |
@@ -330,7 +331,7 @@ Selection of the events of each decay:
 | `compton` | n_s = 1, n_a = 1 | sum of the two (no geometric cuts) |
 | `any` | n_s + n_a ≥ 1 | sum of all triggered deposits |
 
-5. Binning: channels of `--binwidth` from 0 to `--emax`; events above are dropped and counted in the metadata.
+6. Binning: channels of `--binwidth` from 0 to `--emax`; events above are dropped and counted in the metadata.
 
 No light yield or quenching is modelled. Rebuilding all modes takes about 20 s.
 
@@ -339,15 +340,16 @@ No light yield or quenching is modelled. Rebuilding all modes takes about 20 s.
 
 ```bash
 python build_spectra.py result_postact
-python build_spectra.py result_postact --modes compton any --thr-abs 30 --window 200
+python build_spectra.py result_postact --modes compton any --thr-abs 30 --uld-abs 0
 python build_spectra.py result_postact --fwhm-abs 0.07 --jobs 4
 ```
 
 | Argument | Default | Description |
 | --- | --- | --- |
 | `--modes` | all four | Event classes to write |
-| `--thr-scat`, `--thr-abs` | `5`, `20` keV | Thresholds (provisional) |
-| `--window` | `500` ns | Coincidence window (provisional) |
+| `--thr-scat`, `--thr-abs` | `1`, `24` keV | LLD |
+| `--uld-scat`, `--uld-abs` | `16`, `84` keV | ULD: a deposit above vetoes the decay (0 = none) |
+| `--window` | `10000` ns | Coincidence window |
 | `--fwhm-scat`, `--fwhm-abs`, `--e-ref` | `0`, `0`, `662` keV | Relative FWHM at `e_ref` (0 = no smearing) |
 | `--emax`, `--binwidth` | `2000`, `1` keV | Energy axis |
 | `--seed` | `12345` | Seed of the smearing |

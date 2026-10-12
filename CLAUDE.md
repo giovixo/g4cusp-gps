@@ -104,10 +104,10 @@ activation background (rates and spectra). It follows the method of Campana et a
   after the step-2/3 fixes (chain pruning after merging the feedings, active pairs on ∫A dt with
   `--min-decays 1e-8`); 23,517 pairs in all, 1e-4 of the activity left out. `run_postactivation.py` resumes:
   complete batches are skipped, incomplete ones rerun. After a new step 3, use `--topup`, never a new production.
-- Step 4b: the event selection is **provisional** (thresholds 5 keV plastic / 20 keV GAGG, 500 ns window, no
-  resolution or quenching; modes `scat_single`, `abs_single`, `compton` = exactly 1 + 1, `any`). Rebuilding the
-  spectra takes ~20 s. Steps 6 and 8 read them with `--spectra-file result_postact/spectra_<mode>.npz` and
-  `--emin/--emax`; the old `result_spectra/*.dat` input still works.
+- Step 4b: CUSP event selection (2026-10-12, `build_spectra.py` defaults): LLD 1 keV plastic / 24 keV GAGG, ULD
+  16 / 84 keV (a deposit above the ULD vetoes the whole decay), 10 us window; no resolution or quenching. Modes
+  `scat_single`, `abs_single`, `compton` = exactly 1 + 1, `any`. Rebuilding the spectra takes ~20 s.
+  Steps 6 and 8 read them with `--spectra-file result_postact/spectra_<mode>.npz` and `--emin/--emax`; the old `result_spectra/*.dat` input still works.
 - The user is mostly interested in **out-of-belt** results: averages in steps 7–8 and in the report use
   out-of-belt steps by default (`--belt-threshold`, `--all-orbit`).
 - SPENVIS files (`AP[89]*.txt`) are git-ignored: `AP8MIN.AP8.output_mean_flux_550km_SSO.txt` (stops at 400 MeV)

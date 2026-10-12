@@ -60,7 +60,8 @@ YEAR = 365.25 * DAY
 TIMES = {"1 day": DAY, "1 month": 30 * DAY, "1 year": YEAR, "5 years": 5 * YEAR}
 NAMES = {"scat_single": "Plastic singles", "abs_single": "GAGG singles",
          "compton": "Compton coincidences", "any": "Any deposit"}
-SPEC_REBIN = 4            # channels per displayed bin in the 1-year spectra
+SPEC_REBIN = 1            # channels per displayed bin in the 1-year spectra
+SPEC_EMAX_KEV = 100.0     # upper edge of the displayed 1-year spectra (above the ULD sum of a Compton event)
 LONG_WINDOW_D = 30        # trailing window of the long-term curve [days]
 
 
@@ -146,6 +147,7 @@ def curves(outdir: Path, spenvis: Path, modes: list[str]) -> dict:
     spec, ec = {}, None
     for m in modes:
         a = np.loadtxt(outdir / m / "avg_1y.dat")
+        a = a[a[:, 0] < SPEC_EMAX_KEV]
         n = len(a) // SPEC_REBIN
         spec[m] = a[:n * SPEC_REBIN, 1].reshape(n, SPEC_REBIN).mean(1)
         ec = a[:n * SPEC_REBIN, 0].reshape(n, SPEC_REBIN).mean(1)
@@ -283,7 +285,7 @@ def summary(activities: Path, spectra_dir: Path, modes: list[str], orbits: list[
         "n_pairs": int(len(runs)), "n_decays": int(runs.NDecays.sum()),
         "n_volumes": int(runs.Volume.nunique()), "n_isotopes": int(runs.Isotope.nunique()),
         "decays_min": int(runs.NDecays.min()), "decays_max": int(runs.NDecays.max()),
-        "selection": {k: meta.get(k) for k in ("thr_scat", "thr_abs", "window", "fwhm_scat", "fwhm_abs",
+        "selection": {k: meta.get(k) for k in ("thr_scat", "thr_abs", "uld_scat", "uld_abs", "window", "fwhm_scat", "fwhm_abs",
                                                "emax", "binwidth", "selection")},
         "modes": {m: NAMES.get(m, m) for m in modes},
     }
@@ -407,8 +409,9 @@ def write_pdf(data: dict, path: Path) -> None:
                 ["4", f"Decays at rest: {S['n_decays']:.2e} decays, {S['n_pairs']} pairs "
                       f"({S['n_volumes']} volumes, {S['n_isotopes']} nuclides), {S['decays_min']:.0e}-"
                       f"{S['decays_max']:.0e} per pair"],
-                ["4b", f"Selection: thresholds {sel['thr_scat']:g} keV plastic / {sel['thr_abs']:g} keV GAGG, "
-                       f"window {sel['window']:g} ns, 0-{sel['emax']:g} keV ({sel['selection']})"],
+                ["4b", f"Selection: LLD {sel['thr_scat']:g} keV plastic / {sel['thr_abs']:g} keV GAGG, "
+                       f"ULD {sel.get('uld_scat') or 0:g} keV plastic / {sel.get('uld_abs') or 0:g} keV GAGG, "
+                       f"window {sel['window'] / 1000:g} us, 0-{sel['emax']:g} keV ({sel['selection']})"],
                 ["5-8", "Per orbit: history at 60 s steps, 5-year history, out-of-belt averages"]])),
             ("h", "Out-of-belt mean rate by time in orbit"),
             ("table", (["Time in orbit", "Orbit", "Activity [Bq]"] + [f"{names[m]} [counts/s]" for m in modes],
@@ -533,8 +536,9 @@ def write_pdf(data: dict, path: Path) -> None:
                     ("table", (["Nuclide", "T1/2", "Rate [counts/s]", "Share"],
                                [[i, h, g(r), f"{s}%"] for i, h, r, s in T["contrib"][m + "_iso"]]))])
         text_page(pdf, "Method and limits", [
-            ("p", "Event classes (provisional selection): a scintillator triggers above the plastic or GAGG threshold; "
-                  "deposits later than the coincidence window after the first trigger are dropped. Plastic singles: "
+            ("p", "Event classes: a scintillator triggers above the plastic or GAGG lower-level discriminator (LLD); "
+                  "deposits later than the coincidence window after the first trigger are dropped; a decay with a "
+                  "scintillator above its upper-level discriminator (ULD) is vetoed. Plastic singles: "
                   "one plastic bar and no GAGG crystal. GAGG singles: one GAGG crystal and no plastic bar. Compton "
                   "coincidences: exactly one plastic bar and one GAGG crystal, energies summed; no geometric or "
                   "kinematic cuts yet."),
