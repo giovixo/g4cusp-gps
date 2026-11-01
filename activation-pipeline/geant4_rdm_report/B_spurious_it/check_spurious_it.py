@@ -9,10 +9,16 @@ because of an IT branch that leads nowhere.
      G4VRadioactiveDecay::LoadDecayTable matches to a floating level of the
      decay library ("first level which matches excitation energy regardless
      of floating level"), so they get that level's decay modes.
+  3. With --old=<RadioactiveDecay5.6 dir>: origin of case 1. Isomers at an
+     unknown energy (E = 0 with a floating flag) that have an IT branch in the
+     old library and no record in the new one, with the ground state of both
+     libraries. The ground state gets a spurious IT branch exactly when the
+     old library had both records, the isomer is still a floating level at
+     E = 0 in ENSDFSTATE, and it decays by IT and by at least one other mode.
 
 Standard library only.
 Usage:
-    python3 check_B_spurious_it.py [RadioactiveDecay dir] [ENSDFSTATE.dat]
+    python3 check_B_spurious_it.py [RadioactiveDecay dir] [ENSDFSTATE.dat] [--old=DIR]
 Defaults: $GEANT4_DATA_DIR/RadioactiveDecay6.1.2 and
           $GEANT4_DATA_DIR/G4ENSDFSTATE3.0/ENSDFSTATE.dat
 """
@@ -29,6 +35,8 @@ data = Path(os.environ.get("GEANT4_DATA_DIR", "."))
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
 rdm = Path(args[0]) if len(args) > 0 else data / "RadioactiveDecay6.1.2"
 ensdf_file = Path(args[1]) if len(args) > 1 else data / "G4ENSDFSTATE3.0" / "ENSDFSTATE.dat"
+old_dirs = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--old=")]
+old_rdm = Path(old_dirs[0]) if old_dirs else None
 
 SYM = ("n H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge "
        "As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm "
@@ -60,11 +68,16 @@ for line in open(ensdf_file):
 # ---- RadioactiveDecay: (Z, A) -> [level dict] in file order --------------------
 # summary lines: mode, 0, fraction (3 columns)
 # detail lines:  mode, daughter E (keV), flag, intensity (%), Q (keV) [, beta type]
-lib = {}
-for f in rdm.glob("z*.a*"):
-    m = re.fullmatch(r"z(\d+)\.a(\d+)", f.name)
-    if not m:
-        continue
+def read_library(directory):
+    out = {}
+    for f in directory.glob("z*.a*"):
+        m = re.fullmatch(r"z(\d+)\.a(\d+)", f.name)
+        if m:
+            out[(int(m.group(1)), int(m.group(2)))] = read_file(f)
+    return out
+
+
+def read_file(f):
     levels = []
     for line in f.read_text().splitlines():
         t = line.split()
@@ -77,7 +90,10 @@ for f in rdm.glob("z*.a*"):
             levels[-1]["summary"][t[0]] = float(t[2])
         elif levels and len(t) >= 5:
             levels[-1]["detail"].append((t[0], float(t[1]), float(t[3]), float(t[4])))
-    lib[(int(m.group(1)), int(m.group(2)))] = levels
+    return levels
+
+
+lib = read_library(rdm)
 
 
 def g4_match(Z, A, E, flb):
@@ -88,7 +104,8 @@ def g4_match(Z, A, E, flb):
     return None
 
 
-print(f"RadioactiveDecay: {rdm}\nENSDFSTATE:       {ensdf_file}\n")
+print(f"RadioactiveDecay: {rdm}\nENSDFSTATE:       {ensdf_file}"
+      + (f"\nOld library:      {old_rdm}" if old_rdm else "") + "\n")
 
 print("1. Ground states (no floating flag) with an IT branch onto themselves")
 for (Z, A), levels in sorted(lib.items()):
@@ -111,3 +128,47 @@ for (Z, A), levels in sorted(ensdf.items()):
             print(f"   {name(Z, A, E):14s} T1/2 = {fmt_t(hl):9s} -> library level "
                   f"{name(Z, A, lv['E'], lv['flb'])} (T1/2 = "
                   f"{fmt_t(ens_float[0]) if ens_float else '?'}): {modes}")
+
+if old_rdm is None:
+    sys.exit(0)
+
+
+def modes(lv):
+    return ", ".join(f"{m} {v:.5g}" for m, v in lv["summary"].items()) if lv else "no record"
+
+
+def ground(levels):
+    return next((lv for lv in levels if lv["E"] == 0 and not lv["flb"]), None)
+
+
+old = read_library(old_rdm)
+print(f"\n3. Isomers at E = 0 with a floating flag and an IT branch in {old_rdm.name}, "
+      f"absent from {rdm.name}")
+print("   rule = old library has the ground state and the isomer, the isomer is still a floating\n"
+      "          level at E = 0 in ENSDFSTATE, and it decays by IT and by another mode")
+n_rule = n_it = n_bad = 0
+for (Z, A), olevels in sorted(old.items()):
+    if (Z, A) not in lib:
+        continue
+    new = lib[(Z, A)]
+    for iso in olevels:
+        if iso["E"] != 0 or not iso["flb"] or "IT" not in iso["summary"]:
+            continue
+        if any(lv["E"] == 0 and lv["flb"] == iso["flb"] for lv in new):
+            continue
+        floating = any(e == 0 and f == iso["flb"] for e, f, _ in ensdf[(Z, A)])
+        rule = (ground(olevels) is not None and floating
+                and any(m != "IT" for m in iso["summary"]))
+        gs_new = ground(new)
+        has_it = gs_new is not None and "IT" in gs_new["summary"]
+        n_rule += rule
+        n_it += has_it
+        n_bad += rule != has_it
+        print(f"\n   {name(Z, A, 0, iso['flb']):14s} rule {'yes' if rule else 'no ':3s}  "
+              f"ground state has IT in {rdm.name}: {'yes' if has_it else 'no'}"
+              f"{'' if rule == has_it else '   <-- EXCEPTION'}")
+        print(f"      {old_rdm.name} isomer:       {modes(iso)}")
+        print(f"      {old_rdm.name} ground state: {modes(ground(olevels))}")
+        print(f"      {rdm.name} ground state: {modes(gs_new)}")
+        print(f"      still floating at E = 0 in ENSDFSTATE: {'yes' if floating else 'no'}")
+print(f"\n   rule satisfied: {n_rule}; ground state with IT: {n_it}; exceptions: {n_bad}")

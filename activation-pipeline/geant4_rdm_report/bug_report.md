@@ -18,6 +18,7 @@ Some entries of RadioactiveDecay6.1.2 are inconsistent. `G4VRadioactiveDecay::Lo
    - Example: the Tm164 ground state emits nothing in 80% of its decays.
 4. **Levels with no decay data (56 levels that Geant4 can create, T½ ≥ 1 s):** the nucleus is killed when it decays, without emitting anything.
    - Examples: Ta178[0.000X] (2.36 h), Cm252 (2.0 d), Bi198 (10.3 min).
+   - Related (split report F): 99 E = 0 levels with T½ ≥ 1 s can never be created, because G4IonTable ignores the floating-level base at E = 0. W178 decays to Ta178[0.000Y], which Geant4 replaces by Ta178[0.000X], a level without decay data: the W178 chain emits nothing after the EC.
 5. **Wrong decay-mode totals (21 candidate levels with T½ ≥ 1 s):** the summary lines give the wrong share of decays to each mode, or leave a mode out.
    - Pu233 never decays by EC and emits no alpha particle; Np231 decays by alpha 95% of the time instead of about 2%; Tl183 decays by alpha every time; every Tb157 decay feeds a 54.5 keV level of Gd157.
 
@@ -147,7 +148,7 @@ ENSDFSTATE gives 147 levels with 1 s ≤ T½ < 10¹⁵ s that have no matching l
 
 I created each of the 147 levels with `/gun/ion Z A 0 E flb` in rdecay01:
 - 56 are created as requested and **emit nothing in any decay**;
-- 90 cannot be created as requested (Geant4 returns the ground state instead), so they are not affected;
+- 90 cannot be created as requested. They are E = 0 levels that G4IonTable never creates, because it ignores the floating-level base at E = 0; a request for one of them gets another level, with that level's lifetime and decay data (split report F, which replaces C);
 - 1 (Pm152[150X]) decays normally.
 
 The 56 silent levels:

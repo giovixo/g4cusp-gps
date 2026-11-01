@@ -1,0 +1,341 @@
+RadioactiveDecay: /Users/riccardo/geant4-v11.4.1/share/Geant4/data/RadioactiveDecay6.1.2
+ENSDFSTATE:       /Users/riccardo/geant4-v11.4.1/share/Geant4/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+Old library:      RadioactiveDecay5.6
+
+1. Ground states (no floating flag) with an IT branch onto themselves
+   Br92     IT 0.5      (other modes: BetaMinus 0.5)
+   Y92      IT 0.5      (other modes: BetaMinus 0.5)
+   Tc102    IT 0.019608 (other modes: BetaMinus 0.98039)
+   Sb128    IT 0.034749 (other modes: BetaMinus 0.96525)
+   Eu140    IT 0.5      (other modes: MshellEC 0.00088604, BetaPlus 0.47431, KshellEC 0.021716, LshellEC 0.0030878)
+   Tb154    IT 0.17898  (other modes: BetaMinus 8.2102e-28, MshellEC 0.030006, BetaPlus 0.022317, KshellEC 0.66569, LshellEC 0.10301)
+   Ir186    IT 0.2      (other modes: MshellEC 0.033475, BetaPlus 0.044635, KshellEC 0.61542, LshellEC 0.10647)
+   Au190    IT 0.5      (other modes: Alpha 5e-09, MshellEC 0.020975, BetaPlus 0.041599, KshellEC 0.37171, LshellEC 0.065714)
+   Np240    IT 0.0011986 (other modes: BetaMinus 0.9988)
+   No253    IT 0.44444  (other modes: Alpha 0.35556, BetaPlus 0.2)
+
+2. ENSDFSTATE levels (T1/2 >= 1 s) without floating flag that LoadDecayTable matches to a floating level
+   Rh92           T1/2 = 4.66 s    -> library level Rh92[0X] (T1/2 = 0.53 s): MshellEC 0.00020258, BetaPlus 0.99186, KshellEC 0.00708, LshellEC 0.00086236
+   La128          T1/2 = 5.18 min  -> library level La128[0X] (T1/2 = 1.4 min): MshellEC 0.0041185, BetaPlus 0.87074, KshellEC 0.1103, LshellEC 0.014836
+   Ho156[52.37]   T1/2 = 9.5 s     -> library level Ho156[52.37X] (T1/2 = 7.6 min): BetaPlus 0.07171, IT 0.92829
+   Tm164          T1/2 = 1.95 min  -> library level Tm164[0X] (T1/2 = 5.1 min): MshellEC 0.0073409, BetaPlus 0.010129, KshellEC 0.15787, LshellEC 0.024659, IT 0.8
+   Ta160          T1/2 = 1.55 s    -> library level Ta160[0X] (T1/2 = 1.7 s): Alpha 0.60241, BetaPlus 0.39759
+   Md258          T1/2 = 51.5 d    -> library level Md258[0X] (T1/2 = 57 min): Alpha 0.76923, BetaMinus 0.23077, BetaPlus 7.6923e-28, SpFission 7.6923e-28
+
+3. Isomers at E = 0 with a floating flag and an IT branch in RadioactiveDecay5.6, absent from RadioactiveDecay6.1.2
+   rule = old library has the ground state and the isomer, the isomer is still a floating
+          level at E = 0 in ENSDFSTATE, and it decays by IT and by another mode
+
+   Br92[0X]       rule yes  ground state has IT in RadioactiveDecay6.1.2: yes
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: BetaMinus 1
+      RadioactiveDecay6.1.2 ground state: BetaMinus 0.5, IT 0.5
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Y92[0X]        rule yes  ground state has IT in RadioactiveDecay6.1.2: yes
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: BetaMinus 1
+      RadioactiveDecay6.1.2 ground state: BetaMinus 0.5, IT 0.5
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Zr108[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaMinus 1
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Nb85[0Z]       rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Nb86[0Y]       rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Tc102[0X]      rule yes  ground state has IT in RadioactiveDecay6.1.2: yes
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.98039, IT 0.019608
+      RadioactiveDecay5.6 ground state: BetaMinus 1
+      RadioactiveDecay6.1.2 ground state: BetaMinus 0.98039, IT 0.019608
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Ru91[0X]       rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: MshellEC 0.00027467, BetaPlus 0.98878, KshellEC 0.0097641, LshellEC 0.0011814
+      RadioactiveDecay6.1.2 ground state: MshellEC 0.00027467, BetaPlus 0.98878, KshellEC 0.0097641, LshellEC 0.0011814
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Cd129[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaMinus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   In98[0X]       rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: MshellEC 8.2534e-05, BetaPlus 0.997, KshellEC 0.0025912, LshellEC 0.0003263
+      still floating at E = 0 in ENSDFSTATE: no
+
+   In98[0Y]       rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: MshellEC 8.2534e-05, BetaPlus 0.997, KshellEC 0.0025912, LshellEC 0.0003263
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Sn131[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaMinus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Sb128[0X]      rule yes  ground state has IT in RadioactiveDecay6.1.2: yes
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.964, IT 0.036
+      RadioactiveDecay5.6 ground state: BetaMinus 1
+      RadioactiveDecay6.1.2 ground state: BetaMinus 0.96525, IT 0.034749
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Sb138[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaMinus 1
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Cs117[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Cs117[0Z]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Cs118[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Cs120[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Cs144[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: BetaMinus 1
+      RadioactiveDecay6.1.2 ground state: BetaMinus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   La124[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   La126[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: no
+
+   La126[0Z]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Sm133[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Eu136[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Eu140[0X]      rule yes  ground state has IT in RadioactiveDecay6.1.2: yes
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.009901, IT 0.9901
+      RadioactiveDecay5.6 ground state: MshellEC 0.0017721, BetaPlus 0.94862, KshellEC 0.043432, LshellEC 0.0061755
+      RadioactiveDecay6.1.2 ground state: MshellEC 0.00088604, BetaPlus 0.47431, KshellEC 0.021716, LshellEC 0.0030878, IT 0.5
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Gd139[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Tb154[0X]      rule yes  ground state has IT in RadioactiveDecay6.1.2: yes
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.000999, BetaPlus 0.78122, IT 0.21778
+      RadioactiveDecay5.6 ground state: BetaMinus 0.000999, MshellEC 0.036511, BetaPlus 0.027155, KshellEC 0.81, LshellEC 0.12534
+      RadioactiveDecay6.1.2 ground state: BetaMinus 8.2102e-28, MshellEC 0.030006, BetaPlus 0.022317, KshellEC 0.66569, LshellEC 0.10301, IT 0.17898
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Tb154[0Y]      rule yes  ground state has IT in RadioactiveDecay6.1.2: yes
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.000999, BetaPlus 0.98102, IT 0.017982
+      RadioactiveDecay5.6 ground state: BetaMinus 0.000999, MshellEC 0.036511, BetaPlus 0.027155, KshellEC 0.81, LshellEC 0.12534
+      RadioactiveDecay6.1.2 ground state: BetaMinus 8.2102e-28, MshellEC 0.030006, BetaPlus 0.022317, KshellEC 0.66569, LshellEC 0.10301, IT 0.17898
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Tm158[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: MshellEC 0.010586, BetaPlus 0.71987, KshellEC 0.23383, LshellEC 0.035706
+      RadioactiveDecay6.1.2 ground state: MshellEC 0.010206, BetaPlus 0.72983, KshellEC 0.22557, LshellEC 0.034402
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Tm158[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: MshellEC 0.010586, BetaPlus 0.71987, KshellEC 0.23383, LshellEC 0.035706
+      RadioactiveDecay6.1.2 ground state: MshellEC 0.010206, BetaPlus 0.72983, KshellEC 0.22557, LshellEC 0.034402
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Lu160[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: Alpha 1e-27, BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Lu162[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Lu162[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Lu167[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: MshellEC 0.037961, BetaPlus 0.067457, KshellEC 0.76919, LshellEC 0.12539
+      RadioactiveDecay6.1.2 ground state: MshellEC 0.040096, BetaPlus 0.057179, KshellEC 0.77725, LshellEC 0.12548
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Ta188[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: BetaMinus 1
+      RadioactiveDecay6.1.2 ground state: BetaMinus 1
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Re172[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Re194[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Re196[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: BetaMinus 1
+      RadioactiveDecay6.1.2 ground state: BetaMinus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Ir186[0X]      rule yes  ground state has IT in RadioactiveDecay6.1.2: yes
+      RadioactiveDecay5.6 isomer:       MshellEC 0.029674, BetaPlus 0.073322, KshellEC 0.55245, LshellEC 0.094554, IT 0.25
+      RadioactiveDecay5.6 ground state: MshellEC 0.041784, BetaPlus 0.05668, KshellEC 0.76863, LshellEC 0.1329
+      RadioactiveDecay6.1.2 ground state: MshellEC 0.033475, BetaPlus 0.044635, KshellEC 0.61542, LshellEC 0.10647, IT 0.2
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Ir199[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaMinus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Au176[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: Alpha 1
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Au190[0X]      rule yes  ground state has IT in RadioactiveDecay6.1.2: yes
+      RadioactiveDecay5.6 isomer:       Alpha 5e-09, BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: Alpha 1e-08, MshellEC 0.042129, BetaPlus 0.080184, KshellEC 0.74571, LshellEC 0.13198
+      RadioactiveDecay6.1.2 ground state: Alpha 5e-09, MshellEC 0.020975, BetaPlus 0.041599, KshellEC 0.37171, LshellEC 0.065714, IT 0.5
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Tl188[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Tl188[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Pb212[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: BetaMinus 1
+      RadioactiveDecay6.1.2 ground state: BetaMinus 1
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Bi184[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       Alpha 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   At194[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Rn201[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: Alpha 1
+      RadioactiveDecay6.1.2 ground state: Alpha 1, BetaPlus 1.25e-27
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Ra201[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       Alpha 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: no record
+      still floating at E = 0 in ENSDFSTATE: no
+
+   Ac222[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       IT 1
+      RadioactiveDecay5.6 ground state: Alpha 1
+      RadioactiveDecay6.1.2 ground state: Alpha 1, BetaPlus 1.0101e-27
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Np240[0X]      rule yes  ground state has IT in RadioactiveDecay6.1.2: yes
+      RadioactiveDecay5.6 isomer:       BetaMinus 0.9988, IT 0.0012
+      RadioactiveDecay5.6 ground state: BetaMinus 1
+      RadioactiveDecay6.1.2 ground state: BetaMinus 0.9988, IT 0.0011986
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Bk242[0X]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   Bk242[0Y]      rule no   ground state has IT in RadioactiveDecay6.1.2: no
+      RadioactiveDecay5.6 isomer:       BetaPlus 0.5, IT 0.5
+      RadioactiveDecay5.6 ground state: no record
+      RadioactiveDecay6.1.2 ground state: BetaPlus 1
+      still floating at E = 0 in ENSDFSTATE: yes
+
+   rule satisfied: 10; ground state with IT: 10; exceptions: 0

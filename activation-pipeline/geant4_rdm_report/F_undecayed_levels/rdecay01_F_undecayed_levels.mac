@@ -1,0 +1,40 @@
+# Report F: long-lived levels that Geant4 never decays correctly
+# Run with the unmodified example examples/extended/radioactivedecay/rdecay01
+# and read, for each run, the name and mean life of the primary ion and the
+# table "Nb of generated particles".
+/control/verbose 2
+/run/verbose 0
+/process/had/rdm/thresholdForVeryLongDecayTime 1.0e+60 year
+/run/initialize
+/gun/particle ion
+/run/printProgress 0
+/rdecay01/fullChain false
+#
+# Control (correct data)
+/gun/ion 27 57
+/run/beamOn 2000
+#
+# A. Levels created as requested, without decay data: killed without secondaries
+/gun/ion 73 178 0 0 X
+/run/beamOn 2000
+/gun/ion 96 252
+/run/beamOn 2000
+/gun/ion 83 198
+/run/beamOn 2000
+#
+# B. Shadowed E = 0 levels: Geant4 creates another level
+#    Ta178 (1+, 9.31 min) requested: Ta178[0.000X] (7-, 2.36 h) created, no secondaries
+/gun/ion 73 178 0 0 Y
+/run/beamOn 2000
+#    Sb120 (8-, 5.76 d) requested: Sb120 ground state (1+, 15.89 min) created
+/gun/ion 51 120 0 0 X
+/run/beamOn 2000
+#
+# C. Full chains
+#    W178 -> Ta178 (1+) -> Hf178: the chain stops at Ta178[0.000X]
+/rdecay01/fullChain true
+/gun/ion 74 178
+/run/beamOn 2000
+#    U240 -> Np240 (72% to the 7.22 min level): all through the Np240 ground state (1.03 h)
+/gun/ion 92 240
+/run/beamOn 2000

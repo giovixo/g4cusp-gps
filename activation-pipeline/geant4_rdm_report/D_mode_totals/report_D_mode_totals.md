@@ -1,13 +1,15 @@
 <!-- DRAFT: check the ENSDF branching ratios quoted below against NuDat before submitting. -->
 
-# RadioactiveDecay6.1.2: wrong decay-mode totals in some levels (Pu233 emits no α and never decays by EC, Np231 α 95%, Tl183 α 100%, Tb157 always feeds Gd157[54.5])
+# RadioactiveDecay6.1.2: wrong decay-mode totals in some levels (Pu233 never decays by EC, Np231 α 95%, Tl183 α 100%, Tb157 always feeds Gd157[54.5])
 
-- **Component:** data library RadioactiveDecay6.1.2 (read by `G4VRadioactiveDecay::LoadDecayTable`)
+- **Component:** data library RadioactiveDecay6.1.2 and 6.1.3 (read by `G4VRadioactiveDecay::LoadDecayTable`)
 - **Geant4 version:** 11.4.1 (datasets RadioactiveDecay6.1.2, G4ENSDFSTATE3.0, PhotonEvaporation6.1.2)
 - **Platform:** macOS 15.8, Apple silicon (arm64)
 - **Severity:** physics results are wrong, and no warning is printed
 
-This is one of five related reports on the RadioactiveDecay6.1.2 data (see "Related reports" at the end).
+This is one of the related reports on the RadioactiveDecay6.1.2 and 6.1.3 data (see "Related reports" at the end).
+
+The problem is still present in RadioactiveDecay6.1.3 (the final files of 29 October 2026, provided in bug 2780): the data of these levels are unchanged, the check script gives the same output (`check_D_mode_totals_6.1.3c.out`) and rdecay01 gives the same counts, except for Pu233: its α detail line now has Q = 6405 keV, so it emits an α particle in every decay (ENSDF: 0.12%), and it still never decays by EC.
 
 ## Summary
 
@@ -17,14 +19,15 @@ In some levels the summary fractions are wrong: they give a mode far more decays
 
 Attached:
 - `check_D_mode_totals.py`: a standard-library Python script that lists the candidate levels;
-- `check_D_mode_totals.out`: its output;
+- `check_D_mode_totals.out`: its output (6.1.2);
+- `check_D_mode_totals_6.1.3c.out`: its output on the final 6.1.3 files;
 - `rdecay01_D_mode_totals.mac`: a macro for the unmodified example `extended/radioactivedecay/rdecay01` that shows the Geant4 behaviour.
 
 ## How to reproduce
 
 ```
 source <geant4-install>/bin/geant4.sh
-python3 check_D_mode_totals.py          # reads $GEANT4_DATA_DIR
+python3 check_D_mode_totals.py          # 6.1.2 from $GEANT4_DATA_DIR; pass the 6.1.3 directory as first argument
 cd <rdecay01 build dir>
 ./rdecay01 rdecay01_D_mode_totals.mac
 ```
@@ -38,16 +41,16 @@ The macro decays 20,000 nuclei of each nuclide at rest, with `/rdecay01/fullChai
 | Nuclide | Observed | Expected (ENSDF) |
 |---|---|---|
 | Co57 (control) | 20000 νₑ, Fe57 excited levels | as observed |
-| Pu233 | U229[15] in every decay, **no α particle**¹ | EC 99.88% to Np233, α 0.12% |
+| Pu233 | U229[15] and an α particle in every decay¹ | EC 99.88% to Np233, α 0.12% |
 | Np231 | α 18922 (95%), β⁺ 1078 (5%) | EC/β⁺ 98%, α 2% |
 | Tl183 | α 20000 (100%) | mostly EC/β⁺, α a few % |
 | Tb157 | every decay is M-shell EC to **Gd157[54.536]** | EC 100%, to the ground state |
 
-¹ The α detail line has Q = −15 keV, so no α particle is emitted (see bug 2780).
+¹ With 6.1.3 the α detail line has Q = 6405 keV. With 6.1.2 it had Q = −15 keV, so the α particle was not emitted either (see bug 2780).
 
 ## The data
 
-Two examples:
+Two examples (6.1.2):
 
 ```
 z94.a233 (Pu233; ENSDF: EC 99.88%, α 0.12%)
@@ -61,7 +64,7 @@ z81.a183 (Tl183)
    detail lines: Alpha 50 %, BetaPlus 50 %
 ```
 
-In Pu233 the EC branch is missing and the α branch, with 0.12% of decays in its detail line, becomes 100% of the decays. Its Q column is also −15 keV, so the α particle is not emitted (see bug 2780). In Tl183 the β⁺ branch has detail lines but a summary fraction of 0.
+In Pu233 the EC branch is missing and the α branch, with 0.12% of decays in its detail line, becomes 100% of the decays. In 6.1.2 its Q column is also −15 keV, so the α particle is not emitted (see bug 2780); in 6.1.3 it is 6405 keV, and the α particle is emitted in every decay. In Tl183 the β⁺ branch has detail lines but a summary fraction of 0.
 
 **Candidate levels (21):** Rh98[56.3], Tb157, Ho152, Tm155[41], Os181[49.2], Tl181, Tl183, Pb185, Bi212[239], Bi212[1478], Np231, Pu233, Am232, Am233, Cm234, Bk234, Md248, No255, Lr262, Db262 and Sg265[152X].
 
@@ -74,9 +77,10 @@ They were selected by a heuristic: the summary gives more than 50% of the decays
 
 ## Related reports
 
-Five reports on RadioactiveDecay6.1.2, submitted separately:
-- A. Q ≤ 0 in the detail lines: no β particle emitted (bug 2780)
+Reports on RadioactiveDecay6.1.2 and 6.1.3, submitted separately:
+- A. Q ≤ 0 in the detail lines: no β particle emitted (bug 2780, fixed in 6.1.3)
 - B. Ground states with a spurious IT branch, or matched to a floating level: wrong decay modes, some decays emit nothing
-- C. Unstable levels without decay data are killed without emitting anything, and without a warning
+- C. Replaced by report F
 - D. Wrong decay-mode totals in some levels (this report)
-- E. `P`-line half-lives disagree with ENSDFSTATE; README_RDM does not match the file format
+- E. A 138-character line in `z86.a197` (6.1.3) breaks `LoadDecayTable`; README_RDM does not match the file format
+- F. Long-lived levels never decayed correctly: no decay data, or E = 0 levels that cannot be created

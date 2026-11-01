@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-Report E: RadioactiveDecay6.1.2 'P'-line half-lives and README_RDM format.
+Report E: RadioactiveDecay half-lives in the files, line length, and README_RDM format.
 
   1. 'P'-line half-lives that differ by more than 1 % from ENSDFSTATE
-     (G4VRadioactiveDecay::LoadDecayTable ignores them).
+     (G4VRadioactiveDecay::LoadDecayTable ignores them), and the same for
+     the half-life in the comment header of each file (ground state).
   2. Actual format of the decay files, to compare with README_RDM:
      column counts of the summary and detail lines, the line-length rule that
      LoadDecayTable uses to tell them apart (after removing trailing blanks:
      summary < 72 characters, detail without beta type < 84, with beta type
-     >= 84; lines are read into a 120-character buffer), and the convention
+     >= 84; lines are read into a 120-character buffer, so any line of 120
+     characters or more, comments included, stops the reading of the file:
+     these lines are listed), and the convention
      of the detail percentages (relative to the mode total, as README_RDM
      says, or relative to all decays).
 
@@ -107,12 +110,35 @@ for (Z, A), levels in sorted(lib.items()):
                 break
 print(f"   total: {n}")
 
+UNIT = {"PS": 1e-12, "NS": 1e-9, "US": 1e-6, "MS": 1e-3, "S": 1, "M": 60, "H": 3600,
+        "D": 86400, "Y": 3.15576e7}
+print("\n   comment-header half-lives (first line, ground state) differing from ENSDFSTATE by more than 1 %")
+n = n_hdr = 0
+for f in sorted(rdm.glob("z*.a*")):
+    m = re.fullmatch(r"z(\d+)\.a(\d+)", f.name)
+    if not m:
+        continue
+    Z, A = int(m.group(1)), int(m.group(2))
+    with open(f) as fh:
+        h = re.match(r"#\s*\d+[A-Z]+\s*\(\s*([\d.]+(?:[Ee][+-]?\d+)?)\s*([A-Z]+)\s*\)", fh.readline())
+    gs = [hl for E, flb, hl in ensdf.get((Z, A), []) if E == 0 and not flb and hl > 0]
+    if not h or h.group(2) not in UNIT or not gs:
+        continue
+    n_hdr += 1
+    t = float(h.group(1)) * UNIT[h.group(2)]
+    if abs(t / gs[0] - 1) > 0.01:
+        n += 1
+        print(f"   {f.name:10s} {name(Z, A):8s} header {fmt_t(t):11s} ENSDFSTATE {fmt_t(gs[0])}")
+print(f"   total: {n} of {n_hdr} headers compared")
+
 print("\n2. File format")
 cols = defaultdict(int)
-rule_bad, longest = [], 0
+rule_bad, too_long, longest = [], [], 0
 for f in sorted(rdm.glob("z*.a*")):
-    for line in f.read_text().splitlines():
+    for i, line in enumerate(f.read_text().splitlines(), 1):
         longest = max(longest, len(line))
+        if len(line) >= 120:
+            too_long.append(f"{f.name} line {i} ({len(line)} characters): {line.rstrip()}")
         s = line.rstrip()
         t = s.split()
         if not t or s.startswith("#") or s.startswith("P"):
@@ -128,6 +154,10 @@ print(f"   lines breaking the length rule of LoadDecayTable: {len(rule_bad)}")
 for s in rule_bad[:20]:
     print("     ", s)
 print(f"   longest line: {longest} characters (buffer: 120)")
+print(f"   lines of 120 characters or more (getline fails, the rest of the file is not read): "
+      f"{len(too_long)}")
+for s in too_long:
+    print("     ", s)
 
 n_det = n_all = 0
 for levels in lib.values():
