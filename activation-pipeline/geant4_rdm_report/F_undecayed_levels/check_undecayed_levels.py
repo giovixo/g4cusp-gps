@@ -19,11 +19,12 @@ This script lists the levels for which (a) or (b) fails:
      daughter Geant4 replaces with another level, and what the replacement
      does: no decay data (radiation lost), other decay data, or the same data
      with another lifetime;
-  4. what Geant4 does with each level of lists 1 and 2: (a) created and killed
-     without radiation, (b) created and de-excited by IT instead of its own
-     decay, (c) not created and replaced by a level with decay data (wrong
-     lifetime and radiation), (d) not created and replaced by a level without
-     decay data (no radiation).
+  4. what Geant4 does with each level of lists 1 and 2:
+     A. created, no decay data: killed at its decay time without radiation
+        (sub-case: an excited level, de-excited by IT instead of its own decay);
+     B. not created, replaced by a level with decay data: wrong lifetime and
+        radiation;
+     C. not created, replaced by a level without decay data: no radiation.
 
 Optionally it writes an rdecay01 macro that creates and decays every level of
 list 1, and classifies the rdecay01 output of that macro.
@@ -242,7 +243,11 @@ for k in sorted(merged, key=lambda k: (-merged[k] * min(info[k][0], 3.15576e9), 
 # Predicted from the data and the rules of G4IonTable and LoadDecayTable; the rdecay01 run
 # (--macro, --log) checks the levels of list 1.
 shadow_long = {(Z, A, lv[1]): (Z, A, lv) for (Z, A), lv in long}
-outcome = defaultdict(list)
+CAT_A = "A. created; no decay data"
+CAT_B = "B. not created; replaced by a level with decay data: wrong lifetime and radiation"
+CAT_C = "C. not created; replaced by a level without decay data: no radiation"
+outcome = {CAT_A: [], CAT_B: [], CAT_C: []}
+it_case = []        # sub-case of A: excited level de-excited by IT instead of its own decay
 union = {(Z, A, E, flb): hl for Z, A, E, flb, hl in missing}
 for (Z, A), lv in long:
     union.setdefault((Z, A, 0.0, lv[1]), lv[2])
@@ -252,20 +257,28 @@ for (Z, A, E, flb), hl in sorted(union.items()):
         g = multi[(Z, A)][0]
         own = "own data unused" if exact_match(Z, A, 0.0, flb) else "no own data"
         sub = f"{label} -> {name(Z, A, 0, g[1] or '-')} ({fmt_t(g[2])}), {own}"
-        if g4_match(Z, A, 0.0, g[1]) is None:
-            outcome["d. not created; replaced by a level without decay data: no radiation"].append(sub)
-        else:
-            outcome["c. not created; replaced by a level with decay data: wrong lifetime and radiation"].append(sub)
-    elif E > 0:
-        outcome["b. created; no decay data: de-excited by IT instead of its own decay"].append(label)
+        outcome[CAT_C if g4_match(Z, A, 0.0, g[1]) is None else CAT_B].append(sub)
     else:
-        outcome["a. created; no decay data: killed without radiation"].append(label)
+        outcome[CAT_A].append(label)
+        if E > 0:
+            it_case.append(label)
+n_a, n_b, n_c = (len(outcome[k]) for k in (CAT_A, CAT_B, CAT_C))
 print(f"\n4. What Geant4 does with the {len(union)} levels of lists 1 and 2 "
       f"({len(missing)} + {len(long)} - {len(missing) + len(long) - len(union)} in both)")
-for k in sorted(outcome):
+for k in outcome:
     print(f"   {k}: {len(outcome[k])}")
-for k in sorted(outcome):
-    if len(outcome[k]) <= 20:
+    if k == CAT_A:
+        print(f"      killed at their decay time without radiation: {n_a - len(it_case)}")
+        print(f"      de-excited by IT instead of their own decay: {len(it_case)}")
+print(f"   no radiation at all (A except IT, and C): {n_a - len(it_case) + n_c}")
+print(f"   radiation of the wrong level or decay mode (IT and B): {len(it_case) + n_b}")
+for k in outcome:
+    if k == CAT_A and len(outcome[k]) > 20:
+        if it_case:
+            print(f"\n   {k}, de-excited by IT instead of their own decay (sub-case of A):")
+            for s in it_case:
+                print(f"      {s}")
+    elif len(outcome[k]) <= 20:
         print(f"\n   {k}:")
         for s in outcome[k]:
             print(f"      {s}")
