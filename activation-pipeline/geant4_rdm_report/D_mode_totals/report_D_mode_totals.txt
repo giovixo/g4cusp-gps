@@ -190,8 +190,6 @@ Reports on RadioactiveDecay6.1.2 and 6.1.3, submitted separately:
 - B. Ground states with a spurious IT branch, or matched to a floating level
   (bug 2794, fixed in 6.1.3d)
 - D. Decay-mode fractions that ignore the ENSDF branchings (this report)
-- E. A 138-character line in z86.a197 (6.1.3) breaks LoadDecayTable;
-  README_RDM does not match the file format (the line and the header
-  half-lives are fixed in 6.1.3d; README_RDM is unchanged)
+- E. README_RDM does not describe the file format
 - F. Long-lived levels never decayed correctly: no decay data, or E = 0 levels
   that cannot be created

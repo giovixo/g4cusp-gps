@@ -1,5 +1,5 @@
 RadioactiveDecay: RadioactiveDecay6.1.3d
-ENSDFSTATE:       /Users/riccardo/geant4-v11.4.1/share/Geant4/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+ENSDFSTATE:       ~/geant4-v11.4.1/share/Geant4/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
 
 1. 'P'-line half-lives differing from ENSDFSTATE by more than 1 %
    total: 0
