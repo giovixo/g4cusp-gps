@@ -1,0 +1,15 @@
+RadioactiveDecay: RadioactiveDecay6.1.3d
+ENSDFSTATE:       /Users/riccardo/geant4-v11.4.1/share/Geant4/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+
+1. 'P'-line half-lives differing from ENSDFSTATE by more than 1 %
+   total: 0
+
+   comment-header half-lives (first line, ground state) differing from ENSDFSTATE by more than 1 %
+   total: 0 of 2209 headers compared
+
+2. File format
+   decay-mode lines by number of columns: 3 columns: 9861, 5 columns: 61721, 6 columns: 830
+   lines breaking the length rule of LoadDecayTable: 0
+   longest line: 115 characters (buffer: 120)
+   lines of 120 characters or more (getline fails, the rest of the file is not read): 0
+   levels with detail lines: 3241; levels where the detail percentages of some mode do not add up to 100 (+-1): 1495

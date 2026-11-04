@@ -18,7 +18,12 @@ This script lists the levels for which (a) or (b) fails:
   3. decay records whose daughter is a shadowed level, i.e. decays whose
      daughter Geant4 replaces with another level, and what the replacement
      does: no decay data (radiation lost), other decay data, or the same data
-     with another lifetime.
+     with another lifetime;
+  4. what Geant4 does with each level of lists 1 and 2: (a) created and killed
+     without radiation, (b) created and de-excited by IT instead of its own
+     decay, (c) not created and replaced by a level with decay data (wrong
+     lifetime and radiation), (d) not created and replaced by a level without
+     decay data (no radiation).
 
 Optionally it writes an rdecay01 macro that creates and decays every level of
 list 1, and classifies the rdecay01 output of that macro.
@@ -176,11 +181,16 @@ DAUGHTER = {"BetaMinus": (1, 0), "BetaPlus": (-1, 0), "KshellEC": (-1, 0), "Lshe
             "MshellEC": (-1, 0), "NshellEC": (-1, 0), "Alpha": (-2, -4), "Proton": (-1, -1),
             "Neutron": (0, -1), "IT": (0, 0)}
 merged, info = defaultdict(float), {}
+shadow_parent = {(Z, A, lv[1]) for (Z, A), lv in shadowed}
+skipped_parents = set()
 for (Z, A), levels in lib.items():
     hl_ensdf = {(round(E, 3), fl): T for E, fl, T in ensdf.get((Z, A), [])}
     for lv in levels:
         tP = hl_ensdf.get((round(lv["E"], 3), lv["flb"]), lv["T"])
         if tP is None or tP < min_parent:
+            continue
+        if abs(lv["E"]) <= E0_TOL and (Z, A, lv["flb"]) in shadow_parent:
+            skipped_parents.add(name(Z, A, 0, lv["flb"]))   # parent never created: record unused
             continue
         psum = defaultdict(float)
         for mode, Ed, fd, pct in lv["detail"]:
@@ -216,6 +226,9 @@ print(f"3. Decays (parent T1/2 >= {min_parent:g} s) whose daughter is a shadowed
       f"{len(merged)} parent -> daughter pairs")
 for c, n in sorted(classes.items(), key=lambda x: -x[1]):
     print(f"   {c}: {n}")
+if skipped_parents:
+    print(f"   (parents that are themselves shadowed E = 0 levels are skipped: their records are "
+          f"never used; {len(skipped_parents)} with T1/2 >= {min_parent:g} s)")
 print(f"\n   {'parent':14s} {'T1/2':>10s}  {'requested daughter':18s} {'T1/2':>10s}  "
       f"{'Geant4 daughter':16s} {'T1/2':>10s}  {'BR':>7s}  consequence")
 for k in sorted(merged, key=lambda k: (-merged[k] * min(info[k][0], 3.15576e9), k)):
@@ -224,6 +237,38 @@ for k in sorted(merged, key=lambda k: (-merged[k] * min(info[k][0], 3.15576e9), 
     print(f"   {name(Z, A, E, fl):14s} {fmt_t(tP):>10s}  {name(Zd, Ad, 0, fd or '-'):18s} "
           f"{fmt_t(tR):>10s}  {name(Zd, Ad, 0, g[1] or '-'):16s} {fmt_t(g[2]):>10s}  "
           f"{100 * merged[k]:6.2f}%  {cls}")
+
+# ---- 4. what Geant4 does with the levels of lists 1 and 2 ----------------------------------
+# Predicted from the data and the rules of G4IonTable and LoadDecayTable; the rdecay01 run
+# (--macro, --log) checks the levels of list 1.
+shadow_long = {(Z, A, lv[1]): (Z, A, lv) for (Z, A), lv in long}
+outcome = defaultdict(list)
+union = {(Z, A, E, flb): hl for Z, A, E, flb, hl in missing}
+for (Z, A), lv in long:
+    union.setdefault((Z, A, 0.0, lv[1]), lv[2])
+for (Z, A, E, flb), hl in sorted(union.items()):
+    label = f"{name(Z, A, E, flb)} ({fmt_t(hl)})"
+    if E == 0 and (Z, A, flb) in shadow_long:
+        g = multi[(Z, A)][0]
+        own = "own data unused" if exact_match(Z, A, 0.0, flb) else "no own data"
+        sub = f"{label} -> {name(Z, A, 0, g[1] or '-')} ({fmt_t(g[2])}), {own}"
+        if g4_match(Z, A, 0.0, g[1]) is None:
+            outcome["d. not created; replaced by a level without decay data: no radiation"].append(sub)
+        else:
+            outcome["c. not created; replaced by a level with decay data: wrong lifetime and radiation"].append(sub)
+    elif E > 0:
+        outcome["b. created; no decay data: de-excited by IT instead of its own decay"].append(label)
+    else:
+        outcome["a. created; no decay data: killed without radiation"].append(label)
+print(f"\n4. What Geant4 does with the {len(union)} levels of lists 1 and 2 "
+      f"({len(missing)} + {len(long)} - {len(missing) + len(long) - len(union)} in both)")
+for k in sorted(outcome):
+    print(f"   {k}: {len(outcome[k])}")
+for k in sorted(outcome):
+    if len(outcome[k]) <= 20:
+        print(f"\n   {k}:")
+        for s in outcome[k]:
+            print(f"      {s}")
 
 # ---- rdecay01 macro and classification (list 1) --------------------------------------------
 if opts.get("macro"):

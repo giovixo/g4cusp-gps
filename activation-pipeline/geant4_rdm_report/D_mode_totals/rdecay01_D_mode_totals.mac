@@ -1,4 +1,4 @@
-# Report D: wrong decay-mode totals
+# Report D: decay-mode fractions computed from incomplete detail lines
 # Run with the unmodified example
 #   examples/extended/radioactivedecay/rdecay01
 # and read the "Nb of generated particles" table of each run.
@@ -14,12 +14,23 @@
 /gun/ion 27 57
 /run/beamOn 20000
 #
-# Pu233, Np231, Tl183, Tb157
+# A mode without detail lines disappears, the others are inflated
+# Pu233, Np231, Am233, Tl183
 /gun/ion 94 233
 /run/beamOn 20000
 /gun/ion 93 231
 /run/beamOn 20000
+/gun/ion 95 233
+/run/beamOn 20000
 /gun/ion 81 183
 /run/beamOn 20000
+#
+# Missing alpha or IT branch of an isomer: Bi212[239], Rh98[56.3]
+/gun/ion 83 212 0 239
+/run/beamOn 20000
+/gun/ion 45 98 0 56.3
+/run/beamOn 20000
+#
+# Right mode, wrong daughter level: Tb157
 /gun/ion 65 157
 /run/beamOn 20000

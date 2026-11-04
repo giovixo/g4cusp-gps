@@ -1,4 +1,4 @@
-RadioactiveDecay: RadioactiveDecay6.1.3c
+RadioactiveDecay: RadioactiveDecay6.1.3d
 ENSDFSTATE:       /Users/riccardo/geant4-v11.4.1/share/Geant4/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
 
 Candidate wrong decay-mode totals (summary > 0.5 with detail lines < 50 %, or summary ~0 with detail lines >= 1 %)

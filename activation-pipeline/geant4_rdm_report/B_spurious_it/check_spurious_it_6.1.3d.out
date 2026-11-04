@@ -1,0 +1,6 @@
+RadioactiveDecay: RadioactiveDecay6.1.3d
+ENSDFSTATE:       /Users/riccardo/geant4-v11.4.1/share/Geant4/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+
+1. Ground states (no floating flag) with an IT branch onto themselves
+
+2. ENSDFSTATE levels (T1/2 >= 1 s) without floating flag that LoadDecayTable matches to a floating level

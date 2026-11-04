@@ -1,0 +1,7 @@
+RadioactiveDecay: RadioactiveDecay6.1.3d
+ENSDFSTATE:       /Users/riccardo/geant4-v11.4.1/share/Geant4/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+
+Levels with non-IT decay branches having Q <= 0 (intensity > 0)
+   Rh99               3 branches,    0.567 % of decays, KshellEC/LshellEC/MshellEC; Q = -18.34, -18.34, -18.34
+   Yb164              8 branches,    0.319 % of decays, KshellEC/LshellEC/MshellEC; Q = -28.4, -51.98, -160.02, ...
+   total: 2 levels

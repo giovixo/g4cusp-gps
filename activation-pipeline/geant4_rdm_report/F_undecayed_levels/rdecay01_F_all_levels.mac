@@ -39,9 +39,6 @@
 /control/echo CASE 43 88 0 Y
 /gun/ion 43 88 0 0 Y
 /run/beamOn 200
-/control/echo CASE 43 102 0 X
-/gun/ion 43 102 0 0 X
-/run/beamOn 200
 /control/echo CASE 44 91 0 X
 /gun/ion 44 91 0 0 X
 /run/beamOn 200
@@ -74,9 +71,6 @@
 /run/beamOn 200
 /control/echo CASE 51 120 0 X
 /gun/ion 51 120 0 0 X
-/run/beamOn 200
-/control/echo CASE 51 128 0 X
-/gun/ion 51 128 0 0 X
 /run/beamOn 200
 /control/echo CASE 51 132 0 X
 /gun/ion 51 132 0 0 X
@@ -186,12 +180,6 @@
 /control/echo CASE 65 146 0 X
 /gun/ion 65 146 0 0 X
 /run/beamOn 200
-/control/echo CASE 65 154 0 Y
-/gun/ion 65 154 0 0 Y
-/run/beamOn 200
-/control/echo CASE 65 154 0 X
-/gun/ion 65 154 0 0 X
-/run/beamOn 200
 /control/echo CASE 65 169 0 -
 /gun/ion 65 169 0 0 
 /run/beamOn 200
@@ -291,9 +279,6 @@
 /control/echo CASE 77 172 0 Y
 /gun/ion 77 172 0 0 Y
 /run/beamOn 200
-/control/echo CASE 77 186 0 X
-/gun/ion 77 186 0 0 X
-/run/beamOn 200
 /control/echo CASE 79 176 0 Y
 /gun/ion 79 176 0 0 Y
 /run/beamOn 200
@@ -362,9 +347,6 @@
 /run/beamOn 200
 /control/echo CASE 89 222 0 X
 /gun/ion 89 222 0 0 X
-/run/beamOn 200
-/control/echo CASE 93 240 0 X
-/gun/ion 93 240 0 0 X
 /run/beamOn 200
 /control/echo CASE 93 242 0 X
 /gun/ion 93 242 0 0 X

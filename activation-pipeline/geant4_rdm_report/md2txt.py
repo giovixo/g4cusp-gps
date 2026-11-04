@@ -7,11 +7,13 @@ import re, sys, textwrap
 UNI = [("ν̄ₑ", "anti_nu_e"), ("νₑ", "nu_e"), ("β⁻", "beta-"), ("β⁺", "beta+"), ("e⁻", "e-"),
        ("e⁺", "e+"), ("β", "beta"), ("α", "alpha"), ("τ", "tau"), ("T½", "T1/2"),
        ("≤", "<="), ("≥", ">="), ("±", "+-"), ("×", "x"), ("−", "-"), ("–", "-"), ("—", "--"),
-       ("…", "..."), ("→", "->"), ("“", '"'), ("”", '"'), ("’", "'"), ("Q_beta-", "Q(beta-)"), ("¹", "(1)")]
+       ("…", "..."), ("→", "->"), ("“", '"'), ("”", '"'), ("’", "'"), ("Q_beta-", "Q(beta-)"), ("¹", "(1)"), ("γ", "gamma"), ("ε", "eps"), ("σ", "sigma"), ("≈", "~")]
 SUP = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
 
 
 def asc(s):
+    # superscript numbers first, so that a "¹" inside "10¹⁵" is not read as a footnote mark
+    s = re.sub(r"[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]{2,}", lambda m: "^" + m.group(0).translate(SUP), s)
     for a, b in UNI:
         s = s.replace(a, b)
     s = re.sub(r"[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+", lambda m: "^" + m.group(0).translate(SUP), s)
